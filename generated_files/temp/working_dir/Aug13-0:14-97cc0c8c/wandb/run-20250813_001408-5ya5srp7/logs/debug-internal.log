@@ -1,0 +1,20 @@
+{"time":"2025-08-13T00:14:08.979672318+08:00","level":"INFO","msg":"using version","core version":"0.18.7"}
+{"time":"2025-08-13T00:14:08.979689841+08:00","level":"INFO","msg":"created symlink","path":"/home/zhuowei/My_Proj/G-Align/generated_files/temp/working_dir/Aug13-0:14-97cc0c8c/wandb/run-20250813_001408-5ya5srp7/logs/debug-core.log"}
+{"time":"2025-08-13T00:14:09.187644093+08:00","level":"INFO","msg":"created new stream","id":"5ya5srp7"}
+{"time":"2025-08-13T00:14:09.18769561+08:00","level":"INFO","msg":"stream: started","id":"5ya5srp7"}
+{"time":"2025-08-13T00:14:09.189365152+08:00","level":"INFO","msg":"sender: started","stream_id":"5ya5srp7"}
+{"time":"2025-08-13T00:14:09.189365754+08:00","level":"INFO","msg":"writer: Do: started","stream_id":"5ya5srp7"}
+{"time":"2025-08-13T00:14:09.189778681+08:00","level":"INFO","msg":"handler: started","stream_id":"5ya5srp7"}
+{"time":"2025-08-13T00:14:10.314787336+08:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-08-14T03:05:56.162861003+08:00","level":"INFO","msg":"api: retrying HTTP error","status":502,"url":"https://api.wandb.ai/files/zhuowei/GAlign-Pretrain/5ya5srp7/file_stream"}
+{"time":"2025-08-14T22:40:01.979361493+08:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/graphql\": context deadline exceeded"}
+{"time":"2025-08-15T01:08:26.196450482+08:00","level":"INFO","msg":"api: retrying HTTP error","status":502,"url":"https://api.wandb.ai/files/zhuowei/GAlign-Pretrain/5ya5srp7/file_stream"}
+{"time":"2025-08-15T02:51:48.14907129+08:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-08-15T02:51:48.150238822+08:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-08-15T02:51:49.110248746+08:00","level":"INFO","msg":"handler: operation stats","stats":{"operations":[{"desc":"saving job artifact","runtime_seconds":0.478195264},{"desc":"uploading config.yaml","runtime_seconds":0.209560509,"progress":"56.8KB/56.8KB"},{"desc":"uploading output.log","runtime_seconds":0.209549518,"progress":"657.1KB/657.1KB"}],"total_operations":3}}
+{"time":"2025-08-15T02:51:50.641939583+08:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-08-15T02:51:51.937160609+08:00","level":"INFO","msg":"stream: closing","id":"5ya5srp7"}
+{"time":"2025-08-15T02:51:51.937185506+08:00","level":"INFO","msg":"handler: closed","stream_id":"5ya5srp7"}
+{"time":"2025-08-15T02:51:51.937197238+08:00","level":"INFO","msg":"writer: Close: closed","stream_id":"5ya5srp7"}
+{"time":"2025-08-15T02:51:51.93720355+08:00","level":"INFO","msg":"sender: closed","stream_id":"5ya5srp7"}
+{"time":"2025-08-15T02:51:51.937250509+08:00","level":"INFO","msg":"stream: closed","id":"5ya5srp7"}

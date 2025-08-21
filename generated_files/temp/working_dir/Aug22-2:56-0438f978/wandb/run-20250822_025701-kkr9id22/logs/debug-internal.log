@@ -1,0 +1,7 @@
+{"time":"2025-08-22T02:57:01.172105585+08:00","level":"INFO","msg":"stream: starting","core version":"0.19.11","symlink path":"/home/zhuowei/MyProj/G-Align-v2/G-Align-v2/generated_files/temp/working_dir/Aug22-2:56-0438f978/wandb/run-20250822_025701-kkr9id22/logs/debug-core.log"}
+{"time":"2025-08-22T02:57:01.545033453+08:00","level":"INFO","msg":"created new stream","id":"kkr9id22"}
+{"time":"2025-08-22T02:57:01.545065336+08:00","level":"INFO","msg":"stream: started","id":"kkr9id22"}
+{"time":"2025-08-22T02:57:01.545078804+08:00","level":"INFO","msg":"sender: started","stream_id":"kkr9id22"}
+{"time":"2025-08-22T02:57:01.545090361+08:00","level":"INFO","msg":"writer: Do: started","stream_id":"kkr9id22"}
+{"time":"2025-08-22T02:57:01.545082312+08:00","level":"INFO","msg":"handler: started","stream_id":"kkr9id22"}
+{"time":"2025-08-22T02:57:02.27838186+08:00","level":"INFO","msg":"Starting system monitor"}

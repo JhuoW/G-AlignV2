@@ -1,0 +1,60 @@
+{
+  "os": "Linux-5.10.134-18.al8.x86_64-x86_64-with-glibc2.32",
+  "python": "CPython 3.12.2",
+  "startedAt": "2025-08-21T18:57:01.168078Z",
+  "program": "/home/zhuowei/MyProj/G-Align-v2/G-Align-v2/pretrain.py",
+  "codePath": "pretrain.py",
+  "git": {
+    "remote": "git@github.com:JhuoW/G-Align.git",
+    "commit": "bf97c71065b57b46986572274d9ec393c79fba37"
+  },
+  "email": "mario931077127@gmail.com",
+  "root": "/home/zhuowei/MyProj/G-Align-v2/G-Align-v2/generated_files/temp/working_dir/Aug22-2:56-0438f978/",
+  "host": "iZk1afosv5qcv4fae4o3ldZ",
+  "executable": "/home/zhuowei/anaconda3/bin/python",
+  "codePathLocal": "pretrain.py",
+  "cpu_count": 24,
+  "cpu_count_logical": 48,
+  "gpu": "Tesla V100-SXM2-32GB",
+  "gpu_count": 4,
+  "disk": {
+    "/": {
+      "total": "540728532992",
+      "used": "292455313408"
+    }
+  },
+  "memory": {
+    "total": "388230922240"
+  },
+  "cpu": {
+    "count": 24,
+    "countLogical": 48
+  },
+  "gpu_nvidia": [
+    {
+      "name": "Tesla V100-SXM2-32GB",
+      "memoryTotal": "34359738368",
+      "cudaCores": 5120,
+      "architecture": "Volta"
+    },
+    {
+      "name": "Tesla V100-SXM2-32GB",
+      "memoryTotal": "34359738368",
+      "cudaCores": 5120,
+      "architecture": "Volta"
+    },
+    {
+      "name": "Tesla V100-SXM2-32GB",
+      "memoryTotal": "34359738368",
+      "cudaCores": 5120,
+      "architecture": "Volta"
+    },
+    {
+      "name": "Tesla V100-SXM2-32GB",
+      "memoryTotal": "34359738368",
+      "cudaCores": 5120,
+      "architecture": "Volta"
+    }
+  ],
+  "cudaVersion": "12.4"
+}

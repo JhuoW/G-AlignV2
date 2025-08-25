@@ -6,7 +6,7 @@ from sklearn.decomposition import PCA
 import torch
 from itertools import accumulate
 from torch_geometric.data import Data, Dataset
-from data_process.datahelper import SentenceEncoder
+from data_process.datahelper import SentenceEncoder, read_knowledge_graph
 from torch_geometric.data import InMemoryDataset
 import os.path as osp
 from utils.utils import pth_safe_load
@@ -391,6 +391,130 @@ class SingleGraphDataset(InMemoryDataset, ABC):
         for k in feat_ind:
             prompt_feats[k] = getattr(self.data, feat_ind[k][0])[feat_ind[k][1]]
         return prompt_feats
+
+
+class KGDataset(InMemoryDataset, ABC):
+    def __init__(self, cfg, 
+                       name,  # [fb15k237, wn18rr]
+                       transform = None,   
+                       pre_transform = None, 
+                       llm_encoder = SentenceEncoder, 
+                       load_text = False):
+        self.cfg = cfg
+        self.ds_name = name  
+        self.unify_dim = cfg.unify_dim if cfg.unify_dim else 50
+        self.data_source, ds_alias = cfg['_ds_meta_data'][self.ds_name].split(", ")        
+        components = ds_alias.split(".") 
+        base_source, name = components
+        self.ds_alias = ds_alias # FB15K237, WN18RR
+        # datasets/ofa/KnowledgeGraph.FB15K237
+        root = osp.join(cfg.dirs.data_storage, self.data_source, ds_alias)
+        self.llm_encoder = llm_encoder
+        self.load_text = load_text
+        super().__init__(root=root, transform=transform, pre_transform=pre_transform)
+        if load_text: # for arxiv, wikics
+            self.texts = torch.load(self.processed_paths[1], weights_only=False)  # load text features
+
+        self.data, self.slices = torch.load(self.processed_paths[0], weights_only=False)
+        if load_text:
+            self.side_data = pth_safe_load(self.processed_paths[2]) if osp.exists(self.processed_paths[2]) else None
+
+        # attach metadata
+        self.num_nodes = self.data.num_nodes
+        self.num_feats = self.data.num_features
+        # self.num_classes = int(self.data.y.max().item() + 1) if self.data.y is not None else None
+        # self.adj = self._build_adj(self.data.edge_index, self.num_nodes)
+        self.edge_index = self.data.edge_index
+        self.labels = self.data.y
+        self.train_mask = self.data.train_mask if hasattr(self.data, 'train_mask') else None
+        self.val_mask = self.data.val_mask if hasattr(self.data, 'val_mask') else None
+        self.test_mask = self.data.test_mask if hasattr(self.data, 'test_mask') else None
+        if not load_text:
+            self.pca_feat = self.data.pca_x        
+
+    def data2vec(self, data:list[str]):
+        if self.llm_encoder is None:
+            raise NotImplementedError("LLM encoder is not defined")
+        if data is None:
+            return None
+        embeddings = self.llm_encoder.encode(data).cpu()
+        return embeddings        
+
+    @property
+    def raw_file_names(self):
+        # We delegate to Planetoid, so we can leave this empty to force download in process()
+        return []
+    
+    def download(self):
+        # No-op because underlying dataset class will handle its own download in process()
+        pass
+
+    @property
+    def processed_file_names(self):
+        if self.load_text:
+            return ["geometric_data_processed.pt", "texts.pkl", "data.pt"]
+        return ['data.pt']
+
+    def text2feature(self, texts):
+        if isinstance(texts[0], str):
+            return self.data2vec(texts)
+        return [self.text2feature(text) for text in texts]
+
+    def add_text_emb(self, data_list, text_emb):
+        data_list[0].node_text_feat = text_emb[0]
+        data_list[0].edge_text_feat = text_emb[1]
+        data_list[0].class_node_text_feat = text_emb[2]
+        return self.collate(data_list)
+
+    def get_idx_split(self):
+        return self.side_data[0]
+
+    def get_task_map(self):
+        return self.side_data[-1]
+    
+    def get_edge_list(self, mode="e2e"):
+        if mode == "e2e_link":
+            return {"f2n": [1, 0], "n2f": [3, 0], "n2c": [2, 0], "c2n": [4, 0]}
+        elif mode == "lr_link":
+            return {"f2n": [1, 0], "n2f": [3, 0]}
+    
+    def gen_data(self):
+        names = ["train", "valid", "test"]
+        name_dict = {n: osp.join(self.root, n + ".txt") for n in names}
+        # self.root = datasets/ofa/KnowledgeGraph.FB15K237
+        return read_knowledge_graph(self.root, name_dict, self.ds_alias)
+    
+    def get_prompt_text_feat(self, task_name):
+        """
+        Return the list of prompt node/edge feature for the task.
+        """
+        task_map = self.get_task_map()
+        if task_name not in task_map:
+            raise NotImplementedError(
+                "Task " + task_name + " is not implemented for " + self.name + " dataset the implemented tasks are "
+                + str(
+                    task_map.keys()))
+        feat_ind = task_map[task_name]
+        prompt_feats = {}
+        for k in feat_ind:
+            prompt_feats[k] = getattr(self.data, feat_ind[k][0])[feat_ind[k][1]]
+        return prompt_feats
+    
+    def process(self):
+        if self.llm_encoder.model is None:
+            self.llm_encoder.get_model()
+        data_list, texts, side_data = self.gen_data()
+        texts_emb = self.text2feature(texts)  # 所有节点的文本用大模型转为embedding 特征
+        torch.save(texts, self.processed_paths[1]) 
+        if side_data is not None:
+            torch.save(side_data, self.processed_paths[2])
+        else:
+            torch.save("No side data", self.processed_paths[2])
+
+        data, slices = self.add_text_emb(data_list, texts_emb)
+
+        print("Saving...")
+        torch.save((data, slices), self.processed_paths[0])
 
 
 class CombineDataset:

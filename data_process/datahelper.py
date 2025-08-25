@@ -173,7 +173,7 @@ def span_node_and_edge_idx(dataset):
     if dataset.ds_name in ['cora', 'pubmed', 'amazon-ratings']:
         # num_nodes = dataset.data.x.shape[0]
         dataset.data.xn = dataset.data.x
-    elif dataset.ds_name in ['arxiv', 'wikics']:
+    elif dataset.ds_name in ['arxiv', 'wikics', 'fb15k237', 'wn18rr']:
         dataset.data.xn = dataset.data.node_text_feat
 
 
@@ -207,12 +207,12 @@ def filter_unnecessary_attrs(dataset):
 
 
 
-def gen_entities(name):
-    if name == "WN18RR":
+def gen_entities(root, name):
+    if name == "KnowledgeGraph.WN18RR":
         entity2id = {}
         entity_lst = []
         text_lst = []
-        with open(osp.join(osp.dirname(__file__), name, "entity2text.txt"), "r") as f:
+        with open(osp.join(root, "entity2text.txt"), "r") as f:
             lines = f.readlines()
             for line in lines:
                 tmp = line.strip().split("\t")
@@ -220,10 +220,10 @@ def gen_entities(name):
                 text_lst.append(tmp[1])
 
         entity2id = {entity: i for i, entity in enumerate(entity_lst)}
-    elif name == "FB15K237":
+    elif name == "KnowledgeGraph.FB15K237":
         entity_lst = []
         text_lst = []
-        with open(osp.join(osp.dirname(__file__), name, "entity2wikidata.json"), "r") as f:
+        with open(osp.join(root, "entity2wikidata.json"), "r") as f:
             data = json.load(f)
 
         for k in data:
@@ -240,8 +240,8 @@ def gen_entities(name):
     return entity_lst, text_lst, entity2id
 
 
-def read_knowledge_graph(files, name):
-    entity_lst, text_lst, entity2id = gen_entities(name)
+def read_knowledge_graph(root, files, name):
+    entity_lst, text_lst, entity2id = gen_entities(root, name)
     relation2id = {}
 
     converted_triplets = {}

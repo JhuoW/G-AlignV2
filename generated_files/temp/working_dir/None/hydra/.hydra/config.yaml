@@ -54,8 +54,8 @@ task_names:
 - pubmed_link
 - pubmed_node
 - arxiv
-- WN18RR
-- FB15K237
+- wn18rr
+- fb15k237
 - wikics
 - chemblpre
 - chempcba
@@ -70,6 +70,8 @@ _all_datasets:
 - arxiv
 - wikics
 - amazon-ratings
+- wn18rr
+- fb15k237
 _dataset_lookup:
   Xcora:
     eval:
@@ -87,13 +89,13 @@ _dataset_lookup:
     eval:
     - wikics
     train: ${_all_datasets}
-  XWN18RR:
+  Xwn18rr:
     eval:
-    - WN18RR
+    - wn18rr
     train: ${_all_datasets}
-  XFB15K237:
+  Xfb15k237:
     eval:
-    - FB15K237
+    - fb15k237
     train: ${_all_datasets}
   Xchemhiv:
     eval:
@@ -305,7 +307,7 @@ data_config:
     eval_metric: acc
     eval_func: classification_func
     eval_mode: max
-  WN18RR:
+  wn18rr:
     task_level: e2e_link
     args:
       remove_edge: true
@@ -317,9 +319,9 @@ data_config:
     eval_metric: acc
     eval_func: classification_func
     eval_mode: max
-    dataset_name: WN18RR
+    dataset_name: wn18rr
     num_classes: 11
-  WN18RR_eval:
+  wn18rr_eval:
     task_level: e2e_link
     args:
       remove_edge: false
@@ -331,9 +333,9 @@ data_config:
     eval_metric: acc
     eval_func: classification_func
     eval_mode: max
-    dataset_name: WN18RR
+    dataset_name: wn18rr
     num_classes: 11
-  FB15K237:
+  fb15k237:
     task_level: e2e_link
     args:
       remove_edge: true
@@ -345,9 +347,9 @@ data_config:
     eval_metric: acc
     eval_func: classification_func
     eval_mode: max
-    dataset_name: FB15K237
+    dataset_name: fb15k237
     num_classes: 237
-  FB15K237_eval:
+  fb15k237_eval:
     task_level: e2e_link
     args:
       remove_edge: false
@@ -359,7 +361,7 @@ data_config:
     eval_metric: acc
     eval_func: classification_func
     eval_mode: max
-    dataset_name: FB15K237
+    dataset_name: fb15k237
     num_classes: 237
   E2E-graph:
     task_level: e2e_graph
@@ -628,7 +630,7 @@ data_config:
     eval_metric: acc
     eval_func: classification_func
     eval_mode: max
-  FB15K237_fs:
+  fb15k237_fs:
     task_level: lr_link
     construct: ConstructFSTask
     preprocess: KGConstructEdgeList
@@ -645,11 +647,11 @@ data_config:
     eval_metric: acc
     eval_func: classification_func
     eval_mode: max
-    dataset_name: FB15K237
+    dataset_name: fb15k237
     dataset_splitter: KGFSTrainSplitter
     process_label_func: process_int_label
     num_classes: 20
-  FB15K237_fs_101:
+  fb15k237_fs_101:
     task_level: lr_link
     construct: ConstructFSTask
     preprocess: KGConstructEdgeList
@@ -664,11 +666,11 @@ data_config:
     eval_metric: acc
     eval_func: classification_func
     eval_mode: max
-    dataset_name: FB15K237
+    dataset_name: fb15k237
     dataset_splitter: KGFSTrainSplitter
     process_label_func: process_int_label
     num_classes: 10
-  FB15K237_fs_103:
+  fb15k237_fs_103:
     task_level: lr_link
     construct: ConstructFSTask
     preprocess: KGConstructEdgeList
@@ -683,11 +685,11 @@ data_config:
     eval_metric: acc
     eval_func: classification_func
     eval_mode: max
-    dataset_name: FB15K237
+    dataset_name: fb15k237
     dataset_splitter: KGFSTrainSplitter
     process_label_func: process_int_label
     num_classes: 10
-  FB15K237_fs_105:
+  fb15k237_fs_105:
     task_level: lr_link
     construct: ConstructFSTask
     preprocess: KGConstructEdgeList
@@ -702,11 +704,11 @@ data_config:
     eval_metric: acc
     eval_func: classification_func
     eval_mode: max
-    dataset_name: FB15K237
+    dataset_name: fb15k237
     dataset_splitter: KGFSTrainSplitter
     process_label_func: process_int_label
     num_classes: 10
-  FB15K237_fs_201:
+  fb15k237_fs_201:
     task_level: lr_link
     construct: ConstructFSTask
     preprocess: KGConstructEdgeList
@@ -721,11 +723,11 @@ data_config:
     eval_metric: acc
     eval_func: classification_func
     eval_mode: max
-    dataset_name: FB15K237
+    dataset_name: fb15k237
     dataset_splitter: KGFSTrainSplitter
     process_label_func: process_int_label
     num_classes: 20
-  FB15K237_fs_203:
+  fb15k237_fs_203:
     task_level: lr_link
     construct: ConstructFSTask
     preprocess: KGConstructEdgeList
@@ -740,11 +742,11 @@ data_config:
     eval_metric: acc
     eval_func: classification_func
     eval_mode: max
-    dataset_name: FB15K237
+    dataset_name: fb15k237
     dataset_splitter: KGFSTrainSplitter
     process_label_func: process_int_label
     num_classes: 20
-  FB15K237_fs_205:
+  fb15k237_fs_205:
     task_level: lr_link
     construct: ConstructFSTask
     preprocess: KGConstructEdgeList
@@ -759,11 +761,11 @@ data_config:
     eval_metric: acc
     eval_func: classification_func
     eval_mode: max
-    dataset_name: FB15K237
+    dataset_name: fb15k237
     dataset_splitter: KGFSTrainSplitter
     process_label_func: process_int_label
     num_classes: 20
-  WN18RR_fs:
+  wn18rr_fs:
     task_level: lr_link
     construct: ConstructFSTask
     preprocess: KGConstructEdgeList
@@ -778,11 +780,11 @@ data_config:
     eval_metric: acc
     eval_func: classification_func
     eval_mode: max
-    dataset_name: WN18RR
+    dataset_name: wn18rr
     dataset_splitter: KGFSSplitter
     process_label_func: process_int_label
     num_classes: 5
-  WN18RR_fs_51:
+  wn18rr_fs_51:
     task_level: lr_link
     construct: ConstructFSTask
     preprocess: KGConstructEdgeList
@@ -797,11 +799,11 @@ data_config:
     eval_metric: acc
     eval_func: classification_func
     eval_mode: max
-    dataset_name: WN18RR
+    dataset_name: wn18rr
     dataset_splitter: KGFSSplitter
     process_label_func: process_int_label
     num_classes: 5
-  WN18RR_fs_53:
+  wn18rr_fs_53:
     task_level: lr_link
     construct: ConstructFSTask
     preprocess: KGConstructEdgeList
@@ -816,11 +818,11 @@ data_config:
     eval_metric: acc
     eval_func: classification_func
     eval_mode: max
-    dataset_name: WN18RR
+    dataset_name: wn18rr
     dataset_splitter: KGFSSplitter
     process_label_func: process_int_label
     num_classes: 5
-  WN18RR_fs_55:
+  wn18rr_fs_55:
     task_level: lr_link
     construct: ConstructFSTask
     preprocess: KGConstructEdgeList
@@ -835,7 +837,7 @@ data_config:
     eval_metric: acc
     eval_func: classification_func
     eval_mode: max
-    dataset_name: WN18RR
+    dataset_name: wn18rr
     dataset_splitter: KGFSSplitter
     process_label_func: process_int_label
     num_classes: 5

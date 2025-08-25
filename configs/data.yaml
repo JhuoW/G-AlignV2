@@ -3,11 +3,11 @@ dataset: Debug
 
 train_datasets: ${oc.select:_dataset_lookup.${dataset}.train,${dataset}}
 eval_datasets: ${oc.select:_dataset_lookup.${dataset}.eval,${dataset}}
-task_names: ['cora_link','cora_node','pubmed_link','pubmed_node','arxiv','WN18RR','FB15K237','wikics','chemblpre','chempcba','chemhiv']
+task_names: ['cora_link','cora_node','pubmed_link','pubmed_node','arxiv','wn18rr','fb15k237','wikics','chemblpre','chempcba','chemhiv']
 # task_names: ['cora_link','cora_node','pubmed_link','pubmed_node','arxiv','wikics']
 
 
-llm_name: ST
+llm_name: ST   # choice: [ST, llama2_7b, llama2_13b, e5, roberta]
 llm_b_size: 1
 batch_size: 512
 train_sample_size: -1
@@ -18,8 +18,8 @@ _all_datasets: [
   arxiv,
   wikics,
   amazon-ratings,
-  # WN18RR,
-  # FB15K237,
+  wn18rr,
+  fb15k237,
   # chemhiv,
   # chemblpre,
   # chempcba
@@ -42,12 +42,12 @@ _dataset_lookup:
     eval: [wikics]
     train: ${_all_datasets}
 
-  XWN18RR:
-    eval: [WN18RR]
+  Xwn18rr:
+    eval: [wn18rr]
     train: ${_all_datasets}
 
-  XFB15K237:
-    eval: [FB15K237]
+  Xfb15k237:
+    eval: [fb15k237]
     train: ${_all_datasets}
   
   Xchemhiv:
@@ -174,23 +174,23 @@ data_config:
     eval_func: classification_func
     eval_mode: max
 
-  WN18RR: &WN18RR
+  wn18rr: &wn18rr
     <<: *E2E-link-KG
-    dataset_name: WN18RR
+    dataset_name: wn18rr
     num_classes: 11
 
-  WN18RR_eval: &WN18RR_eval
-    <<: *WN18RR
+  wn18rr_eval: &wn18rr_eval
+    <<: *wn18rr
     args:
       <<: *link-eval-args
 
-  FB15K237: &FB15K237
+  fb15k237: &fb15k237
     <<: *E2E-link-KG
-    dataset_name: FB15K237
+    dataset_name: fb15k237
     num_classes: 237
 
-  FB15K237_eval: &FB15K237_eval
-    <<: *FB15K237
+  fb15k237_eval: &fb15k237_eval
+    <<: *fb15k237
     args:
       <<: *link-eval-args
 
@@ -384,9 +384,9 @@ data_config:
     eval_func: classification_func
     eval_mode: max
 
-  FB15K237_fs: &FB15K237_fs
+  fb15k237_fs: &fb15k237_fs
     <<: *LR-link
-    dataset_name: FB15K237
+    dataset_name: fb15k237
     dataset_splitter: KGFSTrainSplitter
     process_label_func: process_int_label
     args:
@@ -401,8 +401,8 @@ data_config:
       remove_edge: True
     num_classes: 20
 
-  FB15K237_fs_101:
-    <<: *FB15K237_fs
+  fb15k237_fs_101:
+    <<: *fb15k237_fs
     args:
       walk_length: null
       single_prompt_edge: True
@@ -414,8 +414,8 @@ data_config:
     num_classes: 10
 
 
-  FB15K237_fs_103:
-    <<: *FB15K237_fs
+  fb15k237_fs_103:
+    <<: *fb15k237_fs
     args:
       walk_length: null
       single_prompt_edge: True
@@ -426,8 +426,8 @@ data_config:
       remove_edge: True
     num_classes: 10
 
-  FB15K237_fs_105:
-    <<: *FB15K237_fs
+  fb15k237_fs_105:
+    <<: *fb15k237_fs
     args:
       walk_length: null
       single_prompt_edge: True
@@ -439,8 +439,8 @@ data_config:
     num_classes: 10
 
 
-  FB15K237_fs_201:
-    <<: *FB15K237_fs
+  fb15k237_fs_201:
+    <<: *fb15k237_fs
     args:
       walk_length: null
       single_prompt_edge: True
@@ -452,8 +452,8 @@ data_config:
     num_classes: 20
 
 
-  FB15K237_fs_203:
-    <<: *FB15K237_fs
+  fb15k237_fs_203:
+    <<: *fb15k237_fs
     args:
       walk_length: null
       single_prompt_edge: True
@@ -464,8 +464,8 @@ data_config:
       remove_edge: True
     num_classes: 20
 
-  FB15K237_fs_205:
-    <<: *FB15K237_fs
+  fb15k237_fs_205:
+    <<: *fb15k237_fs
     args:
       walk_length: null
       single_prompt_edge: True
@@ -477,9 +477,9 @@ data_config:
     num_classes: 20
 
 
-  WN18RR_fs: &WN18RR_fs
+  wn18rr_fs: &wn18rr_fs
     <<: *LR-link
-    dataset_name: WN18RR
+    dataset_name: wn18rr
     dataset_splitter: KGFSSplitter
     process_label_func: process_int_label
     args:
@@ -493,8 +493,8 @@ data_config:
     num_classes: 5
 
 
-  WN18RR_fs_51:
-    <<: *WN18RR_fs
+  wn18rr_fs_51:
+    <<: *wn18rr_fs
     args:
       walk_length: null
       single_prompt_edge: True
@@ -505,8 +505,8 @@ data_config:
       remove_edge: False
     num_classes: 5
 
-  WN18RR_fs_53:
-    <<: *WN18RR_fs
+  wn18rr_fs_53:
+    <<: *wn18rr_fs
     args:
       walk_length: null
       single_prompt_edge: True
@@ -518,8 +518,8 @@ data_config:
     num_classes: 5
 
 
-  WN18RR_fs_55:
-    <<: *WN18RR_fs
+  wn18rr_fs_55:
+    <<: *wn18rr_fs
     args:
       walk_length: null
       single_prompt_edge: True
@@ -538,6 +538,6 @@ _ds_meta_data:
   arxiv: ofa, SingleTextGraph.arxiv
   wikics: ofa, SingleTextGraph.WikiCS
   amazon-ratings: pyg, HeterophilousGraphDataset.Amazon-ratings
-
+  # link prediction on Knowledge graphs
   fb15k237: ofa, KnowledgeGraph.FB15K237
   wn18rr: ofa, KnowledgeGraph.WN18RR

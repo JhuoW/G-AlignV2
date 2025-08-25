@@ -80,3 +80,21 @@ datasets/
 # In-Context Learning on downstream graphs on node classification
 
 ``python icl_enhanced.py --dataset cora --k_shot 3 --n_runs 10 --gpu_id 0``
+
+
+Sometimes raise ```RuntimeError: unable to open shared memory object </torch_3944815_4091667407_461> in read-write mode: Too many open files (24)``` 
+
+Reducing the number of work in ```pt_model.py``` to 0 as:
+```
+def train_dataloader(self):
+    return DataLoader(self.train_ds, batch_size=self.batch_size, shuffle=False, 
+                        num_workers=0, pin_memory=True, collate_fn= lambda x: x)
+
+def val_dataloader(self):
+    return DataLoader(self.val_ds, batch_size=self.batch_size, shuffle=False,
+                        num_workers=0, pin_memory=True, collate_fn= lambda x: x)
+
+def test_dataloader(self):
+    return DataLoader(self.test_ds, batch_size=self.batch_size, shuffle=False,
+                        num_workers=0, pin_memory=True, collate_fn= lambda x: x)
+```

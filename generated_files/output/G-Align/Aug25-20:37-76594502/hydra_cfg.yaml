@@ -1,3 +1,4 @@
+# @package _global_
 project_root: ${hydra:runtime.cwd}
 dirs:
   data_storage: ${project_root}/datasets/
@@ -7,7 +8,7 @@ dirs:
   checkpoint_dir: ${project_root}/generated_files/checkpoints/${model.name}/${uid}/
   temp: ${project_root}/generated_files/temp/working_dir/${uid}/
 res_file: ${dirs.output}seed${seed}_results.json
-uid: null
+uid: Aug25-20:37-76594502
 seed: 0
 remove_dir: false
 pretrain:

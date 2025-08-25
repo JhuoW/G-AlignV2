@@ -83,7 +83,7 @@ hydra:
     - hydra.mode=RUN
     task: []
   job:
-    name: run_ICL_link
+    name: pretrain
     chdir: null
     override_dirname: ''
     id: ???

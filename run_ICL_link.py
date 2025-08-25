@@ -481,7 +481,62 @@ def main(cfg:DictConfig):
         print(f"Settings: {results['k_shot']}-shot, {results['m_way']}-way")
         print(f"Episodes: {results['n_episodes']}")        
 
+        if results['per_relation_accuracy']:
+            print("\nPer-Relation Accuracy (top 5):")
+            sorted_relations = sorted(results['per_relation_accuracy'].items(), 
+                                    key=lambda x: x[1]['mean'], 
+                                    reverse=True)[:5]
+            for rel, stats in sorted_relations:
+                print(f"  Relation {rel}: {stats['mean']:.4f} ± {stats['std']:.4f}")
 
+        print("\nEpisode-wise accuracies:")
+        for i, acc in enumerate(results['all_accuracies']):
+            print(f"  Episode {i+1}: {acc:.4f}")                
+    else:
+        print(f"Error: {results['error']}")
+
+    print("\n" + "="*60)
+    print("K-SHOT SCALING ANALYSIS")
+    print("="*60)
+
+    k_values = [1, 3, 5, 10]
+    scaling_results = []
+
+    for k in k_values:
+        logger.info(f"\nTesting {k}-shot...")
+        results_k = learner.evaluate_link_classification(
+            dataset_name=args.dataset,
+            k_shot=k,
+            m_way=args.m_way,
+            n_episodes=min(5, args.n_episodes)
+        )
+        
+        if 'error' not in results_k:
+            scaling_results.append({
+                'k': k,
+                'accuracy': results_k['mean_accuracy'],
+                'std': results_k['std_accuracy']
+            })
+            print(f"{k}-shot: {results_k['mean_accuracy']:.4f} ± {results_k['std_accuracy']:.4f}")
+
+
+    if args.dataset == 'fb15k237':  # FB15K237 has 237 relations
+        print("\n" + "="*60)
+        print("M-WAY SCALING ANALYSIS")
+        print("="*60)
+        
+        m_values = [5, 10, 20, 50]
+        for m in m_values:
+            logger.info(f"\nTesting {m}-way...")
+            results_m = learner.evaluate_link_classification(
+                dataset_name=args.dataset,
+                k_shot=args.k_shot,
+                m_way=m,
+                n_episodes=min(5, args.n_episodes)
+            )
+            
+            if 'error' not in results_m:
+                print(f"{m}-way: {results_m['mean_accuracy']:.4f} ± {results_m['std_accuracy']:.4f}")
 
 if __name__ == "__main__":
     main()

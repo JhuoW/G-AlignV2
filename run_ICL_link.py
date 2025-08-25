@@ -19,6 +19,7 @@ from sklearn.decomposition import PCA
 import os
 import pickle
 import torch.nn.functional as F
+from tqdm import tqdm
 # print(data_config_lookup['data_config']['fb15k237'])
 # {'task_level': 'e2e_link', 'args': {'remove_edge': True, 'walk_length': None}, 'dataset_splitter': 'KGSplitter', 'preprocess': 'KGConstructEdgeList', 'construct': 'ConstructKG', 'process_label_func': 'process_int_label', 'eval_metric': 'acc', 'eval_func': 'classification_func', 'eval_mode': 'max', 'dataset_name': 'fb15k237', 'num_classes': 237}
 
@@ -81,7 +82,7 @@ class LineGraphTransformer:
         
         # Build adjacency lists for finding edges that share entities
         entity_to_edges = defaultdict(list)
-        for edge_id in range(num_edges):
+        for edge_id in tqdm(range(num_edges)):
             head, tail = edge_index[0, edge_id].item(), edge_index[1, edge_id].item()
             entity_to_edges[head].append(edge_id)
             entity_to_edges[tail].append(edge_id)
@@ -218,7 +219,7 @@ class KGLinkClassificationICL(PrototypeInContextLearner):
             with open(pca_model_path, 'wb') as f:
                 pickle.dump(pca, f)
         
-        feat_np = feat_np.cpu().numpy()
+        feat_np = node_feats.cpu().numpy()
         pca_x = pca.transform(feat_np)
         return torch.from_numpy(pca_x).float().to(node_feats.device)
 
@@ -307,6 +308,8 @@ class KGLinkClassificationICL(PrototypeInContextLearner):
             sub_relation_embeddings
         )
         line_graph.x = self._apply_pca_line_graph(line_graph.x, metadata['dataset_name'], kg_dataset)
+
+        
         line_graph = line_graph.to(device)
         if not hasattr(line_graph, 'batch'):
             line_graph.batch = torch.zeros(line_graph.x.shape[0], dtype=torch.long, device=device)
@@ -396,7 +399,8 @@ class KGLinkClassificationICL(PrototypeInContextLearner):
                                                        metadata,
                                                        k_shot=k_shot,
                                                        m_way=m_way,
-                                                       seed=42 + episode)
+                                                       seed=42 + episode,
+                                                       kg_dataset=kg_dataset)
             if 'error' not in results:
                 all_accuracies.append(results['accuracy'])
                 all_confidences.append(results['mean_confidence'])
@@ -427,7 +431,7 @@ class KGLinkClassificationICL(PrototypeInContextLearner):
 def main(cfg:DictConfig):
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_path', type=str, 
-                       default='generated_files/output/G-Align/final_gfm_model.pt',
+                       default='generated_files/output/G-Align/Aug13-0:14-97cc0c8c/final_gfm_model.pt',
                        help='Path to pretrained model')
     parser.add_argument('--dataset', type=str, default='fb15k237',
                        choices=['fb15k237', 'wn18rr'],

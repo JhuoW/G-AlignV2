@@ -27,7 +27,7 @@ pretrain:
   eval_tasks:
   - cora_node
   use_original_mask: false
-  pretrain_epochs: 8000
+  pretrain_epochs: 6000
   k_shot: 5
   m_way: 10
   t_query: 1

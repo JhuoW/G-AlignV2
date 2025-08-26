@@ -20,40 +20,27 @@ import os
 import pickle
 import torch.nn.functional as F
 from tqdm import tqdm
+import hashlib
 # print(data_config_lookup['data_config']['fb15k237'])
 # {'task_level': 'e2e_link', 'args': {'remove_edge': True, 'walk_length': None}, 'dataset_splitter': 'KGSplitter', 'preprocess': 'KGConstructEdgeList', 'construct': 'ConstructKG', 'process_label_func': 'process_int_label', 'eval_metric': 'acc', 'eval_func': 'classification_func', 'eval_mode': 'max', 'dataset_name': 'fb15k237', 'num_classes': 237}
 
 class LineGraphTransformer:
-    def __init__(self, aggregate_method: str = 'concat', use_relation_emb: bool = True):
-        """
-        Args:
-            aggregate_method: How to aggregate head and tail entity features
-                - 'concat': Concatenate features [h; t] or [h; r; t]
-                - 'mean': Average features (h + t)/2
-                - 'hadamard': Element-wise product h * t
-                - 'diff': Difference h - t
-            use_relation_emb: Whether to include relation embeddings in edge features
-        """
+    def __init__(self, args, aggregate_method: str = 'concat', use_relation_emb: bool = True):
+        self.args = args
         self.aggregate_method = aggregate_method
         self.use_relation_emb = use_relation_emb
 
     def _create_edge_node_features(self, node_features, edge_index, edge_types, relation_embeddings):
-        """Create features for edge-nodes in line graph."""
         head_idx, tail_idx = edge_index
         
-        # Get features of head and tail entities
         head_features = node_features[head_idx]
         tail_features = node_features[tail_idx]
         
-        # Aggregate entity features
         if self.aggregate_method == 'concat':
             if self.use_relation_emb and relation_embeddings is not None:
-                # Get relation embeddings for each edge
                 rel_features = relation_embeddings[edge_types]
-                # Concatenate [head; relation; tail]
                 edge_features = torch.cat([head_features, rel_features, tail_features], dim=-1)
             else:
-                # Concatenate [head; tail]
                 edge_features = torch.cat([head_features, tail_features], dim=-1)
         elif self.aggregate_method == 'mean':
             edge_features = (head_features + tail_features) / 2
@@ -72,25 +59,22 @@ class LineGraphTransformer:
         
         return edge_features
     
-    def _create_line_graph_edges(self, edge_index):
-        """
-        Create edges for line graph.
-        Two edges are connected if they share a head or tail entity.
-        """
+    def _create_line_graph_edges(self, edge_index, max_edges_per_node):
         num_edges = edge_index.shape[1]
         device = edge_index.device
         
-        # Build adjacency lists for finding edges that share entities
         entity_to_edges = defaultdict(list)
-        for edge_id in tqdm(range(num_edges)):
+        for edge_id in tqdm(range(num_edges), desc="Building edge mapping"):
             head, tail = edge_index[0, edge_id].item(), edge_index[1, edge_id].item()
             entity_to_edges[head].append(edge_id)
             entity_to_edges[tail].append(edge_id)
         
-        # Create edges in line graph
         line_edges = set()
-        for entity_id, edge_list in entity_to_edges.items():
-            # Connect all pairs of edges that share this entity
+        for entity_id, edge_list in tqdm(entity_to_edges.items(), desc="Connecting edges"):
+            if len(edge_list) > max_edges_per_node:
+                sampled_edges = np.random.choice(edge_list, max_edges_per_node, replace=False)
+                edge_list = sampled_edges.tolist()
+
             for i in range(len(edge_list)):
                 for j in range(i + 1, len(edge_list)):
                     line_edges.add((edge_list[i], edge_list[j]))
@@ -105,21 +89,9 @@ class LineGraphTransformer:
         return line_graph_edges
 
     def transform(self, data, node_features, edge_types, relation_embeddings):
-        """
-        Transform KG to line graph representation.
-        
-        Args:
-            data: Original KG with edge_index
-            node_features: Node feature matrix (n_nodes, d)
-            edge_types: Relation type for each edge (n_edges,)
-            relation_embeddings: Optional relation embeddings (n_relations, d)
-            
-        Returns:
-            line_graph: Transformed graph where edges become nodes
-        """
+        # KG to Line graph representation
         edge_index = data.edge_index
         num_edges = edge_index.shape[1]
-        device = edge_index.device
         
         # Create node features for line graph (each edge becomes a node)
         edge_features = self._create_edge_node_features(
@@ -127,8 +99,8 @@ class LineGraphTransformer:
         )
         
         # Create edges in line graph (connect edges that share entities)
-        line_graph_edges = self._create_line_graph_edges(edge_index)
-        
+        line_graph_edges = self._create_line_graph_edges(edge_index, max_edges_per_node=self.args.max_edges_per_node)
+
         # Create line graph data object
         line_graph = Data(x = edge_features, edge_index = line_graph_edges, y = edge_types, num_nodes = num_edges)
         
@@ -140,8 +112,13 @@ class KGLinkClassificationICL(PrototypeInContextLearner):
         super().__init__(args)
         self.args = args
         self.cfg = cfg
-        self.line_transformer = LineGraphTransformer(aggregate_method = args.aggr_method, use_relation_emb = args.use_relation_emb)
+        self.line_transformer = LineGraphTransformer(args=args, aggregate_method = args.aggr_method, use_relation_emb = args.use_relation_emb)
         self.pca_cache = {}
+        self.line_graph_cache = {}
+
+    def get_cache_hash(self, dataset_name, m_way = None):
+        config_str = f"{dataset_name}_{m_way}_{self.line_transformer.aggregate_method}_{self.line_transformer.use_relation_emb}"
+        return hashlib.md5(config_str.encode()).hexdigest()[:8]
 
     def load_kg_dataset(self, dataset_name):
         logger.info(f"Loading KG dataset {dataset_name} ...")
@@ -166,37 +143,31 @@ class KGLinkClassificationICL(PrototypeInContextLearner):
 
         data = kg_dataset.data
         node_feats = data.node_text_feat # (n_nodes, 768)
-        relation_embeddings = data.class_node_text_feat
-
-        graph_data = Data(x = data.x, edge_index = data.edge_index)  # graph data with just structure
-
-        edge_types = data.edge_types      # (n_edges, )
         num_edge_types = kg_dataset.data.edge_types.max() + 1  # for fb15k237, num_edge_types = 237
 
         # load and compute pca-transformed node features
         node_feat_cache = osp.join(cache_dir, f'pca_{target_dim}.pt')
         if osp.exists(node_feat_cache):
-            logger.info(f"Loading cached PCA node features from {node_feat_cache}")
             node_feats = torch.load(node_feat_cache, map_location='cpu')
         else:
-            logger.info(f"Computing PCA node features (768 -> {target_dim})")
             node_feats = self.dimension_align(node_feats, cache_dir, dataset_name, 'node', target_dim)
             torch.save(node_feats.cpu(), node_feat_cache)
         
-
         relation_emb_cache = osp.join(cache_dir, f'pca_relation_{target_dim}.pt')
         if osp.exists(relation_emb_cache):
             relation_embeddings = torch.load(relation_emb_cache, map_location='cpu')
         else:
-            relation_embeddings = self.dimension_align(relation_embeddings, cache_dir, dataset_name, 'relation', target_dim)
+            relation_embeddings = self.dimension_align(data.class_node_text_feat, cache_dir, dataset_name, 'relation', target_dim)
             torch.save(relation_embeddings.cpu(), relation_emb_cache)
 
-        metadata = {'edge_types': edge_types,
-                     'num_relations': int(edge_types.max().item()) + 1,
+        graph_data = Data(x=data.x, edge_index=data.edge_index)
+
+        metadata = {'edge_types': data.edge_types, # (n_edges, )
+                     'num_relations': int(data.edge_types.max().item()) + 1,
                      'relation_embeddings': relation_embeddings,
                      'dataset_name': dataset_name,
                      'num_nodes': node_feats.shape[0],
-                     'num_edges': edge_types.shape[0],
+                     'num_edges': data.edge_types.shape[0],
                      'cache_dir': cache_dir}
         return graph_data, node_feats, metadata, kg_dataset
 
@@ -223,7 +194,75 @@ class KGLinkClassificationICL(PrototypeInContextLearner):
         pca_x = pca.transform(feat_np)
         return torch.from_numpy(pca_x).float().to(node_feats.device)
 
-    def _apply_pca_line_graph(self, features, dataset_name, kg_dataset):
+    def load_or_create_line_graph(self, graph_data, node_feats, metadata, m_way = None):
+        cache_dir = metadata['cache_dir']
+        dataset_name = metadata['dataset_name']
+        edge_types = metadata['edge_types']
+        relation_embeddings = metadata['relation_embeddings'].to(self.device)
+        num_relations = metadata['num_relations']
+
+        cache_hash = self.get_cache_hash(dataset_name, m_way)
+        line_graph_cache_path = osp.join(cache_dir, f'line_graph_{cache_hash}.pt')
+        if osp.exists(line_graph_cache_path):
+            try:
+                line_graph_data = torch.load(line_graph_cache_path,map_location='cpu', weights_only=False)
+
+                if 'line_graph' in line_graph_data and 'config' in line_graph_data:
+                    cached_config = line_graph_data['config']
+                    if (cached_config['m_way'] == m_way and 
+                        cached_config['aggregate_method'] == self.line_transformer.aggregate_method and
+                        cached_config['use_relation_emb'] == self.line_transformer.use_relation_emb):
+                        
+                        line_graph = line_graph_data['line_graph']
+                        logger.info(f"Successfully loaded line graph with {line_graph.x.shape[0]} nodes")
+                        return line_graph, line_graph_data.get('selected_relations', None)
+            except Exception as e:
+                logger.warning(f"Failed to load cached line graph: {e}")
+        logger.info(f"Creating new line graph for {dataset_name} with m_way = {m_way}")
+
+        selected_relations = None
+        if m_way is not None and m_way < num_relations:
+            selected_relations = torch.randperm(num_relations)[:m_way]
+            mask = torch.zeros_like(edge_types, dtype=torch.bool)
+            for rel in selected_relations:
+                mask |= (edge_types == rel)
+            edge_indices_to_keep = mask.nonzero(as_tuple=False).squeeze(-1)
+            if edge_indices_to_keep.numel() == 0:
+                logger.error("No edges found for selected relations")
+                return None, None
+            
+            sub_edge_index = graph_data.edge_index[:, edge_indices_to_keep]
+            sub_edge_types = edge_types[edge_indices_to_keep]
+
+            type_mapping = {rel.item(): i for i, rel in enumerate(selected_relations)}
+            remapped_types = sub_edge_types.clone()
+            for old_type, new_type in type_mapping.items():
+                remapped_types[sub_edge_types == old_type] = new_type
+            
+            sub_edge_types = remapped_types
+            sub_relation_embeddings = relation_embeddings[selected_relations]
+        else:
+            sub_edge_index = graph_data.edge_index
+            sub_edge_types = edge_types
+            sub_relation_embeddings = relation_embeddings
+        sub_graph = Data(x=graph_data.x, edge_index=sub_edge_index)
+
+        line_graph = self.line_transformer.transform(sub_graph, node_feats, sub_edge_types,sub_relation_embeddings)
+
+        cache_data = {'line_graph': line_graph,
+                      'config':{'m_way': m_way,
+                                'aggregate_method': self.line_transformer.aggregate_method,
+                                'use_relation_emb': self.line_transformer.use_relation_emb,
+                                'num_relations': num_relations if m_way is None else m_way},
+                       'selected_relations': selected_relations}
+        try:
+            torch.save(cache_data, line_graph_cache_path)
+        except Exception as e:
+            logger.warning(f"Failed to save line graph cache: {e}")
+        return line_graph, selected_relations
+
+
+    def _apply_pca_line_graph(self, features, dataset_name, kg_dataset, m_way = None):
         target_dim = self.cfg.unify_dim if hasattr(self.cfg, 'unify_dim') else 64
         current_dim = features.shape[1]
         
@@ -233,12 +272,14 @@ class KGLinkClassificationICL(PrototypeInContextLearner):
         cache_dir = osp.join(kg_dataset.root, 'kg_pca_cache')
         os.makedirs(cache_dir, exist_ok=True)
         
-        line_graph_features_cache = osp.join(cache_dir, f'line_graph_features_{current_dim}_{target_dim}.pt')
-        pca_model_path = osp.join(cache_dir, f'pca_line_graph_{current_dim}_{target_dim}.pkl')
-        
+
+        cache_suffix = f"_{m_way}way" if m_way is not None else "_all"
+        line_graph_features_cache = osp.join(cache_dir, f'line_graph_features_{current_dim}_{target_dim}{cache_suffix}.pt')
+        pca_model_path = osp.join(cache_dir, f'pca_line_graph_{current_dim}_{target_dim}{cache_suffix}.pkl')
+     
         if osp.exists(line_graph_features_cache):
             logger.info(f"Loading cached line graph features from {line_graph_features_cache}")
-            cached_features = torch.load(line_graph_features_cache, map_location='cpu')
+            cached_features = torch.load(line_graph_features_cache, map_location='cpu',weights_only=False)
             # Verify shape matches
             if cached_features.shape == (features.shape[0], target_dim):
                 return cached_features.to(features.device)
@@ -266,141 +307,103 @@ class KGLinkClassificationICL(PrototypeInContextLearner):
         return features_tensor.to(features.device)
 
     @torch.no_grad()
-    def link_classification_episode(self, graph_data, node_feats, metadata, k_shot, m_way, seed, kg_dataset):
+    def link_classification_episode(self, line_graph, k_shot, m_way, seed):
         torch.manual_seed(seed)
         np.random.seed(seed)
         device = self.device
-        graph_data = graph_data.to(device)
-        node_feats = node_feats.to(device)
-        edge_types = metadata['edge_types'].to(device)
-        relation_embeddings = metadata['relation_embeddings'].to(device)
-        num_relations = metadata['num_relations']
-
-        if m_way is not None and m_way < num_relations:
-            selected_relations = torch.randperm(num_relations)[:m_way].to(device)
-            mask = torch.zeros_like(edge_types, dtype=torch.bool)
-            for rel in selected_relations:
-                mask |= (edge_types == rel)            
-            edge_indices_to_keep = mask.nonzero(as_tuple=False).squeeze(-1)
-
-            if edge_indices_to_keep.numel() == 0:
-                logger.warning("No edges found for selected relations")
-                return {'error': 'No edges for selected relations'}
-            sub_edge_index = graph_data.edge_index[:, edge_indices_to_keep]
-            sub_edge_types = edge_types[edge_indices_to_keep]            
-            type_mapping = {rel.item(): i for i, rel in enumerate(selected_relations)}
-            remapped_types = sub_edge_types.clone()
-            for old_type, new_type in type_mapping.items():
-                remapped_types[sub_edge_types == old_type] = new_type
-            sub_edge_types = remapped_types
-            sub_relation_embeddings = relation_embeddings[selected_relations]
-        else:
-            sub_edge_index = graph_data.edge_index
-            sub_edge_types = edge_types
-            sub_relation_embeddings = relation_embeddings
-            m_way = num_relations
-        sub_graph = Data(x=graph_data.x, edge_index=sub_edge_index)
-
-        line_graph = self.line_transformer.transform(
-            sub_graph,
-            node_feats,
-            sub_edge_types,
-            sub_relation_embeddings
-        )
-        line_graph.x = self._apply_pca_line_graph(line_graph.x, metadata['dataset_name'], kg_dataset)
-
-        
         line_graph = line_graph.to(device)
+
         if not hasattr(line_graph, 'batch'):
             line_graph.batch = torch.zeros(line_graph.x.shape[0], dtype=torch.long, device=device)
 
         num_line_nodes = line_graph.x.shape[0]
         support_mask = torch.zeros(num_line_nodes, dtype=torch.bool, device=device)
-        for rel_type in range(m_way):
+
+        unique_labels = torch.unique(line_graph.y).sort()[0]
+        actual_m_way = len(unique_labels)
+
+        for rel_type in unique_labels:
             rel_mask = (line_graph.y == rel_type)
             rel_indices = rel_mask.nonzero(as_tuple=False).squeeze(-1)
-            
             if rel_indices.numel() > 0:
-                # Reserve at least half for query
                 max_support = min(k_shot, len(rel_indices) // 2)
                 if max_support > 0:
                     perm = torch.randperm(len(rel_indices))[:max_support]
                     selected = rel_indices[perm]
                     support_mask[selected] = True
-
         query_mask = ~support_mask
 
         if support_mask.sum() == 0 or query_mask.sum() == 0:
             logger.warning("Insufficient samples for support/query split")
             return {'error': 'Insufficient samples'}
-        
         logger.info(f"Support: {support_mask.sum().item()} edges, Query: {query_mask.sum().item()} edges")
-
         domain_embedding = self.compute_domain_embedding(line_graph)
-        
         gamma_f, beta_f, gamma_l, beta_l = self.domain_embedder.dm_film(domain_embedding.unsqueeze(0))
         gamma_f, beta_f = gamma_f.squeeze(0), beta_f.squeeze(0)
-        gamma_l, beta_l = gamma_l.squeeze(0), beta_l.squeeze(0)
-        H, _ = self.backbone_gnn.encode(
-            line_graph.x,
-            line_graph.edge_index,
-            None,
-            line_graph.batch
-        )
+        gamma_l, beta_l = gamma_l.squeeze(0), beta_l.squeeze(0)        
+
+        H, _ = self.backbone_gnn.encode(line_graph.x, line_graph.edge_index, None, line_graph.batch)
 
         z_all = gamma_f * H + beta_f
         z_all = F.normalize(z_all, p=2, dim=-1)
-        
+
         support_features = z_all[support_mask]
         support_labels = line_graph.y[support_mask]
-        unique_labels = torch.unique(support_labels).sort()[0]
-        
-        prototypes = self.compute_prototypes(support_features, support_labels, unique_labels)        
+        prototypes = self.compute_prototypes(support_features, support_labels, unique_labels)
+
         query_features = z_all[query_mask]
-        query_labels = line_graph.y[query_mask]        
+        query_labels = line_graph.y[query_mask]
+
         similarities = self.prototype_distance(query_features, prototypes, 'cosine')
         predictions = similarities.argmax(dim=1)
         predicted_labels = unique_labels[predictions]
+
         accuracy = (predicted_labels == query_labels).float().mean().item()
+
         per_relation_acc = {}
+
         for rel in unique_labels:
             rel_mask = query_labels == rel
             if rel_mask.sum() > 0:
                 rel_acc = (predicted_labels[rel_mask] == query_labels[rel_mask]).float().mean().item()
-                per_relation_acc[rel.item()] = rel_acc        
+                per_relation_acc[rel.item()] = rel_acc
+
         probs = F.softmax(similarities / 0.1, dim=1)
         confidences = probs.max(dim=1)[0]
         mean_confidence = confidences.mean().item()
-        results = {
-            'accuracy': accuracy,
-            'per_relation_accuracy': per_relation_acc,
-            'mean_confidence': mean_confidence,
-            'num_support': support_mask.sum().item(),
-            'num_query': query_mask.sum().item(),
-            'num_relations': m_way,
-            'k_shot': k_shot
-        }
+
+        results = {'accuracy': accuracy,
+                   'per_relation_accuracy': per_relation_acc,
+                   'mean_confidence': mean_confidence,
+                   'num_support': support_mask.sum().item(),
+                   'num_query': query_mask.sum().item(),
+                   'num_relations': actual_m_way,
+                   'k_shot': k_shot}
+
         return results
     
 
     def evaluate_link_classification(self, dataset_name, k_shot, m_way, n_episodes):
         graph_data, node_features, metadata, kg_dataset = self.load_kg_dataset(dataset_name)
-        if m_way:
-            logger.info(f"Using {m_way}-way classification")
-        
+
+        line_graph, selected_relations = self.load_or_create_line_graph(graph_data.to(self.device), node_features.to(self.device), metadata, m_way)
+
+        if line_graph is None:
+            return {'error': 'Line graph creation failed'}
+
+        line_graph.x = self._apply_pca_line_graph(line_graph.x, dataset_name, kg_dataset, m_way)
+        logger.info(f"Evaluating on line grapht with {line_graph.x.shape[0]} nodes (edges)")
+
         all_accuracies = []
         all_confidences = []
         all_per_relation = defaultdict(list)
 
         for episode in range(n_episodes):
             logger.info(f"\nEpisode {episode + 1}/{n_episodes}")
-            results = self.link_classification_episode(graph_data,
-                                                       node_features,
-                                                       metadata,
-                                                       k_shot=k_shot,
-                                                       m_way=m_way,
-                                                       seed=42 + episode,
-                                                       kg_dataset=kg_dataset)
+            results = self.link_classification_episode(line_graph,
+                                                       k_shot = k_shot,
+                                                       m_way = m_way if m_way else metadata['num_relations'],
+                                                       seed=42 + episode)
             if 'error' not in results:
                 all_accuracies.append(results['accuracy'])
                 all_confidences.append(results['mean_confidence'])
@@ -442,7 +445,7 @@ def main(cfg:DictConfig):
 
     parser.add_argument('--k_shot', type=int, default=5,
                        help='Number of support examples per relation')
-    parser.add_argument('--m_way', type=int, default=None,
+    parser.add_argument('--m_way', type=int, default=10,
                        help='Number of relations to classify (None = all)')
 
     parser.add_argument('--n_episodes', type=int, default=10,
@@ -455,6 +458,8 @@ def main(cfg:DictConfig):
     parser.add_argument('--llm_name', type=str, default='roberta',
                        choices=['ST', 'llama2_7b', 'llama2_13b', 'e5', 'roberta'],
                        help='Pretrained language model to use')
+    
+    parser.add_argument('--max_edges_per_node', type=int, default=100)
     args = parser.parse_args()
     
     # Set random seed
@@ -508,12 +513,7 @@ def main(cfg:DictConfig):
 
     for k in k_values:
         logger.info(f"\nTesting {k}-shot...")
-        results_k = learner.evaluate_link_classification(
-            dataset_name=args.dataset,
-            k_shot=k,
-            m_way=args.m_way,
-            n_episodes=min(5, args.n_episodes)
-        )
+        results_k = learner.evaluate_link_classification(dataset_name=args.dataset, k_shot=k, m_way=args.m_way, n_episodes=min(5, args.n_episodes))
         
         if 'error' not in results_k:
             scaling_results.append({
@@ -532,12 +532,7 @@ def main(cfg:DictConfig):
         m_values = [5, 10, 20, 50]
         for m in m_values:
             logger.info(f"\nTesting {m}-way...")
-            results_m = learner.evaluate_link_classification(
-                dataset_name=args.dataset,
-                k_shot=args.k_shot,
-                m_way=m,
-                n_episodes=min(5, args.n_episodes)
-            )
+            results_m = learner.evaluate_link_classification(dataset_name=args.dataset, k_shot=args.k_shot, m_way=m, n_episodes=min(5, args.n_episodes))
             
             if 'error' not in results_m:
                 print(f"{m}-way: {results_m['mean_accuracy']:.4f} ± {results_m['std_accuracy']:.4f}")

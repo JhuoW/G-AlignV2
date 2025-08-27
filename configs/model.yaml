@@ -65,6 +65,7 @@ PAMA:
   dropout: 0.5
 
 
+# for A5000 DMAL number of work 0
 PTModel:
-  lr: 1e-2
-  weight_decay: 0.00005  # 0.0005
+  lr: 5e-3    #1e-2   
+  weight_decay: 0.0005  # 0.00005

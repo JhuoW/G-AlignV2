@@ -98,3 +98,5 @@ def test_dataloader(self):
     return DataLoader(self.test_ds, batch_size=self.batch_size, shuffle=False,
                         num_workers=0, pin_memory=True, collate_fn= lambda x: x)
 ```
+
+if facing some converagence issue on some GPUs, just **reduce the learning rate from 0.01 to 0.005**, **enlarge the weight decay from 0.00005 to 0.0005**, and increase the pretraining epochs from 6000 to 8000~10000

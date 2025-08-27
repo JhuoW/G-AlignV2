@@ -305,9 +305,6 @@ class SingleGraphDataset(InMemoryDataset, ABC):
                 ],
                 prompt_text_map,
             )
-        elif self.ds_name in ["fb15k237", "wn18rr"]:
-            names = ["train", "valid", "test"]
-            # root = datasets/ofa/KnowledgeGraph.FB15K237
             
 
 

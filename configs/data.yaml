@@ -125,6 +125,12 @@ data_config:
     process_label_func: process_int_label
     num_classes: 5
 
+  computers: &computers
+    <<: *E2E-node
+    dataset_name: computers
+    num_classes: 10
+
+
   link-eval-args: &link-eval-args
     remove_edge: False
     walk_length: null
@@ -538,7 +544,8 @@ _ds_meta_data:
   arxiv: ofa, SingleTextGraph.arxiv
   wikics: ofa, SingleTextGraph.WikiCS
   amazon-ratings: pyg, HeterophilousGraphDataset.Amazon-ratings
+  computers: pyg, Amazon.Computers
   # link prediction on Knowledge graphs
   fb15k237: ofa, KnowledgeGraph.FB15K237
   wn18rr: ofa, KnowledgeGraph.WN18RR
-  computers: pyg, Amazon.Computers
+  

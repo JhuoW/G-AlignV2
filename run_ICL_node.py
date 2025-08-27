@@ -20,7 +20,7 @@ root = rootutils.setup_root(__file__, dotenv=True, pythonpath=True, cwd=False)
 
 from icl.icl import PrototypeInContextLearner
 from utils.logging import logger
-
+import torch_geometric.transforms as T
 
 class GraphAwarePrototypeLearner(PrototypeInContextLearner):
     """Enhanced prototype learner with graph-aware features."""
@@ -378,20 +378,32 @@ def main():
     
     parser = argparse.ArgumentParser(description="Enhanced G-Align Prototype ICL")
     parser.add_argument('--model_path', type=str, default='generated_files/output/G-Align/Aug13-0:14-97cc0c8c/final_gfm_model.pt')
-    parser.add_argument('--dataset', type=str, default='cora')
-    parser.add_argument('--k_shot', type=int, default=5)
+    parser.add_argument('--dataset', type=str, default='cora')  # computers  product
+    parser.add_argument('--k_shot', type=int, default=1)  # 
     parser.add_argument('--n_runs', type=int, default=10)
     parser.add_argument('--gpu_id', type=int, default=0)
     parser.add_argument('--seed', type=int, default=42)
+    parser.add_argument('--norm_feat', action='store_true', default=False)
     
     args = parser.parse_args()
     
     # Initialize enhanced learner
     learner = GraphAwarePrototypeLearner(args)
     
+    if args.dataset not in learner.cfg['_ds_meta_data'].keys():
+        if args.dataset == 'computers':
+            learner.cfg['_ds_meta_data'][args.dataset] = ('pyg, Amazon.Computers')
+        elif args.dataset == 'cora':
+            learner.cfg['_ds_meta_data'][args.dataset] = ('pyg, Planetoid.Cora')
+
+
     # Load dataset
     graph_data = learner.load_downstream_graph(args.dataset)
     
+    if args.norm_feat:
+        graph_data = T.NormalizeFeatures()(graph_data)
+
+
     logger.info("="*60)
     logger.info("Enhanced Prototype-based In-Context Learning")
     logger.info("="*60)

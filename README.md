@@ -100,3 +100,14 @@ def test_dataloader(self):
 ```
 
 if facing some converagence issue on some GPUs, just **reduce the learning rate from 0.01 to 0.005**, **enlarge the weight decay from 0.00005 to 0.0005**, and increase the pretraining epochs from 6000 to 8000~10000
+
+
+## In-Context Node Classification
+Cora: 
+```python run_ICL_node.py --dataset cora --k_shot {k_shot}```  
+k_shot = {1,3,5}
+
+Computers:
+```python run_ICL_node.py --dataset computers --k_shot {k_shot} --norm_feat```
+k_shot = {1,3}
+```python run_ICL_node.py --dataset computers --k_shot 5```

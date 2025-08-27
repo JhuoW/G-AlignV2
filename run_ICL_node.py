@@ -22,6 +22,7 @@ from icl.icl import PrototypeInContextLearner
 from utils.logging import logger
 import torch_geometric.transforms as T
 
+
 class GraphAwarePrototypeLearner(PrototypeInContextLearner):
     """Enhanced prototype learner with graph-aware features."""
     
@@ -378,7 +379,7 @@ def main():
     
     parser = argparse.ArgumentParser(description="Enhanced G-Align Prototype ICL")
     parser.add_argument('--model_path', type=str, default='generated_files/output/G-Align/Aug13-0:14-97cc0c8c/final_gfm_model.pt')
-    parser.add_argument('--dataset', type=str, default='cora')  # computers  product
+    parser.add_argument('--dataset', type=str, default='cora')  # computers  ogbn-products  
     parser.add_argument('--k_shot', type=int, default=1)  # 
     parser.add_argument('--n_runs', type=int, default=10)
     parser.add_argument('--gpu_id', type=int, default=0)
@@ -395,7 +396,9 @@ def main():
             learner.cfg['_ds_meta_data'][args.dataset] = ('pyg, Amazon.Computers')
         elif args.dataset == 'cora':
             learner.cfg['_ds_meta_data'][args.dataset] = ('pyg, Planetoid.Cora')
-
+        elif args.dataset == 'ogbn-products':
+            learner.cfg['_ds_meta_data'][args.dataset] = ('ogb.nodeproppred, PygNodePropPredDataset.ogbn-products')
+        
 
     # Load dataset
     graph_data = learner.load_downstream_graph(args.dataset)

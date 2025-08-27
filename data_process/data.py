@@ -36,6 +36,7 @@ class SingleGraphDataset(InMemoryDataset, ABC):
         # SingleTextGraph.wikics -> [SingleTextGraph, wikics]
         # HeterophilousGraphDataset.Amazon-ratings -> [HeterophilousGraphDataset, Amazon-ratings]
         # KnowledgeGraph.FB15K237 -> [KnowledgeGraph, FB15K237]
+        # PygNodePropPredDataset.ogbn-products -> [PygNodePropPredDataset, ogbn-products]
         components = ds_alias.split(".") 
 
         if len(components) == 2:
@@ -44,10 +45,11 @@ class SingleGraphDataset(InMemoryDataset, ABC):
             raise ValueError(f"Unexpected ds_alias format: {ds_alias}")
 
         # save dataset in :
-        # dastasets/pyg/Planetoid.Cora
+        # datasets/pyg/Planetoid.Cora
         # datasets/ofa/SingleTextGraph.WikiCS
         # datasets/pyg/HeterophilousGraphDataset.Amazon-ratings
         # datasets/ofa/KnowledgeGraph.FB15K237
+        # datasets/ogb.nodeproppred/PygNodePropPredDataset.ogbn-products
         root = osp.join(cfg.dirs.data_storage, self.data_source, ds_alias)
         self.llm_encoder = llm_encoder
         self.load_text = load_text
@@ -310,40 +312,70 @@ class SingleGraphDataset(InMemoryDataset, ABC):
 
     def process(self):
         if not self.load_text:  # for cora, pubmed
-            ds_alias = self.cfg['_ds_meta_data'][self.ds_name].split(", ")[1]  # Planetoid.Cora
-            components = ds_alias.split(".")
-            # save data into datasets/pyg/Planetoid.Cora/...
-            if len(components) == 2:
-                parent, child = components   # parent = Planetoid, child = Cora 
-                # torch_geometric.datasets.planetoid.Planetoid            
-                dataset = getattr(__import__("torch_geometric.datasets", fromlist=[parent]), parent)(
-                    root = self.root, name = child
-                )
-            else:
-                dataset = instantiate({"_target_": f"torch_geometric.datasets.{ds_alias}", "root": self.root})
-            data = dataset[0]
-            num_nodes = data.num_nodes
-            pca_cache_path = osp.join(self.processed_dir, f"pca_{self.unify_dim}.pt")
-            if osp.exists(pca_cache_path):
-                pca_x = torch.load(pca_cache_path, weights_only=False)  # already a float tensor
-            else:
-                if dataset.num_features == self.unify_dim:
-                    pca_x = data.x.clone()
+            if self.data_source not in ['ogb.nodeproppred']:
+                ds_alias = self.cfg['_ds_meta_data'][self.ds_name].split(", ")[1]  # Planetoid.Cora   PygNodePropPredDataset.ogbn-products
+                components = ds_alias.split(".")
+                # save data into datasets/pyg/Planetoid.Cora/...
+                if len(components) == 2:
+                    parent, child = components   # parent = Planetoid, child = Cora 
+                    # torch_geometric.datasets.planetoid.Planetoid            
+                    dataset = getattr(__import__("torch_geometric.datasets", fromlist=[parent]), parent)(
+                        root = self.root, name = child
+                    )
                 else:
-                    x_np = data.x.cpu().numpy()
-                    pca = PCA(n_components=self.unify_dim)
-                    projected = pca.fit_transform(x_np)  # (N, unify_dim)
-                    pca_x = torch.from_numpy(projected).float()
-                torch.save(pca_x, pca_cache_path)
-            
-            data.pca_x = pca_x
-            data.num_classes = dataset.num_classes  # store for convenience
-            data.num_features = dataset.num_features
-            data.y = data.y
-            data.edge_index = data.edge_index
-            data_list = [data]
-            data, slices = self.collate(data_list)
-            torch.save((data, slices), self.processed_paths[0])
+                    dataset = instantiate({"_target_": f"torch_geometric.datasets.{ds_alias}", "root": self.root})
+                data = dataset[0]
+                num_nodes = data.num_nodes
+                pca_cache_path = osp.join(self.processed_dir, f"pca_{self.unify_dim}.pt")
+                if osp.exists(pca_cache_path):
+                    pca_x = torch.load(pca_cache_path, weights_only=False)  # already a float tensor
+                else:
+                    if dataset.num_features == self.unify_dim:
+                        pca_x = data.x.clone()
+                    else:
+                        x_np = data.x.cpu().numpy()
+                        pca = PCA(n_components=self.unify_dim)
+                        projected = pca.fit_transform(x_np)  # (N, unify_dim)
+                        pca_x = torch.from_numpy(projected).float()
+                    torch.save(pca_x, pca_cache_path)
+                
+                data.pca_x = pca_x
+                data.num_classes = dataset.num_classes  # store for convenience
+                data.num_features = dataset.num_features
+                data.y = data.y
+                data.edge_index = data.edge_index
+                data_list = [data]
+                data, slices = self.collate(data_list)
+                torch.save((data, slices), self.processed_paths[0])
+            else:
+                ds_alias = self.cfg['_ds_meta_data'][self.ds_name].split(", ")[1]  # PygNodePropPredDataset.ogbn-products
+                components = ds_alias.split(".")  
+                parent, child = components  # # PygNodePropPredDataset, ogbn-products
+
+                dataset = PygNodePropPredDataset(name = child, root = self.root, transform = ToUndirected())
+                data = dataset[0]
+                num_nodes = data.num_nodes
+                pca_cache_path = osp.join(self.processed_dir, f"pca_{self.unify_dim}.pt")
+                if osp.exists(pca_cache_path):
+                    pca_x = torch.load(pca_cache_path, weights_only=False)  # already a float tensor
+                else:
+                    if dataset.num_features == self.unify_dim:
+                        pca_x = data.x.clone()
+                    else:
+                        x_np = data.x.cpu().numpy()
+                        pca = PCA(n_components=self.unify_dim)
+                        projected = pca.fit_transform(x_np)  # (N, unify_dim)
+                        pca_x = torch.from_numpy(projected).float()
+                    torch.save(pca_x, pca_cache_path)
+                
+                data.pca_x = pca_x
+                data.num_classes = dataset.num_classes  # store for convenience
+                data.num_features = dataset.num_features
+                data.y = data.y
+                data.edge_index = data.edge_index
+                data_list = [data]
+                data, slices = self.collate(data_list)
+                torch.save((data, slices), self.processed_paths[0])
         else:  # for arxiv, wikics
             if self.llm_encoder.model is None:
                 self.llm_encoder.get_model()

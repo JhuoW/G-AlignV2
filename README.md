@@ -111,3 +111,4 @@ Computers:
 ```python run_ICL_node.py --dataset computers --k_shot {k_shot} --norm_feat```
 k_shot = {1,3}
 ```python run_ICL_node.py --dataset computers --k_shot 5```
+

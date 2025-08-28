@@ -16,7 +16,8 @@ import os.path as osp
 from tqdm import tqdm
 import argparse
 from sklearn.decomposition import PCA
-
+from torch_geometric.utils import k_hop_subgraph, subgraph
+from torch_geometric.loader import NeighborLoader
 
 class PrototypeInContextLearner:
     """Prototype-based in-context learning for G-Align."""
@@ -46,7 +47,6 @@ class PrototypeInContextLearner:
         logger.info("Prototype-based in-context learner initialized successfully")
     
     def _resolve_config_paths(self):
-        """Manually resolve hydra interpolations in the configuration."""
         import os
         from omegaconf import OmegaConf
         
@@ -83,7 +83,6 @@ class PrototypeInContextLearner:
             self.cfg.dirs.output = os.path.join(project_root, 'generated_files', 'output', 'G-Align')
 
     def _setup_model(self):
-        """Setup the model components from saved state."""
         input_dim = self.model_state['combined_graphs_info']['num_features']
         
         # Initialize the trained backbone GNN
@@ -109,10 +108,8 @@ class PrototypeInContextLearner:
         
         self.frozen_backbone.to(self.device).eval()
         
-        # Initialize domain embedder
         self.domain_embedder = DomainEmbedder(self.frozen_backbone, self.cfg)
         
-        # Load projection network for conv-based embeddings
         if self.cfg.Fingerprint.DE_type == 'conv' and 'domain_embedder_projection_state' in self.model_state:
             self.domain_embedder.dm_extractor.projection.load_state_dict(
                 self.model_state['domain_embedder_projection_state']
@@ -124,7 +121,6 @@ class PrototypeInContextLearner:
                     d_c_max = max(dm.shape[1] for dm in delta_matrices)
                     self.domain_embedder.dm_extractor._d_c_max = d_c_max
         
-        # Load cached components
         self.domain_embedder.dm_extractor._theta0 = self.model_state.get('domain_embedder_theta0')
         self.domain_embedder.dm_extractor._e = self.model_state.get('domain_embedder_e')
         if self.cfg.Fingerprint.DE_type == 'pca':
@@ -132,7 +128,6 @@ class PrototypeInContextLearner:
         
         self.domain_embedder.dm_extractor._cached = True
         
-        # Load FiLM network parameters
         film_state = {k.replace('de.dm_film.', ''): v for k, v in self.model_state['model_state_dict'].items() 
                      if 'de.dm_film' in k}
         if film_state:
@@ -143,7 +138,6 @@ class PrototypeInContextLearner:
         logger.info("Model components initialized successfully")
     
     def load_downstream_graph(self, dataset_name: str, data_path: str = None) -> Data:
-        """Load a downstream graph dataset."""
         logger.info(f"Loading downstream dataset: {dataset_name}")
         
         if data_path is None:
@@ -185,6 +179,25 @@ class PrototypeInContextLearner:
             val_mask=dataset.val_mask
         )
         
+        if dataset_name == 'ogbn-products':
+            if graph_data.y.dim() > 1:
+                graph_data.y = graph_data.y.squeeze()
+            num_sample_per_class = self.args.k_shot * 10  
+            sampled_nodes = []
+            
+            for class_id in range(47):  
+                class_mask =  (graph_data.y == class_id)
+                class_nodes = torch.where(class_mask)[0]
+                if len(class_nodes) > 0:
+                    n_sample = min(num_sample_per_class, len(class_nodes))
+                    sampled = class_nodes[torch.randperm(len(class_nodes))[:n_sample]]
+                    sampled_nodes.append(sampled)
+            if len(sampled_nodes) == 0:
+                raise ValueError("No nodes were sampled!")  
+            sampled_nodes = torch.cat(sampled_nodes)
+            subset, edge_index, mapping, edge_mask = k_hop_subgraph(sampled_nodes, num_hops=1, edge_index=graph_data.edge_index, num_nodes=graph_data.x.shape[0], relabel_nodes=True)
+            graph_data = Data(x=graph_data.x[subset],edge_index=edge_index,y=graph_data.y[subset],xe=torch.zeros(edge_index.shape[1], dtype=torch.long))
+
         if not hasattr(graph_data, 'batch'):
             graph_data.batch = torch.zeros(graph_data.x.shape[0], dtype=torch.long)
         

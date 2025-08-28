@@ -139,20 +139,7 @@ class GraphAwarePrototypeLearner(PrototypeInContextLearner):
                                    initial_predictions: torch.Tensor,
                                    edge_index: torch.Tensor,
                                    support_mask: torch.Tensor,
-                                   num_iterations: int = 5) -> torch.Tensor:
-        """
-        Refine predictions using semi-supervised learning.
-        
-        Args:
-            features: Node features [n_nodes, d]
-            initial_predictions: Initial class predictions [n_nodes]
-            edge_index: Graph edges
-            support_mask: Mask for support set
-            num_iterations: Number of refinement iterations
-            
-        Returns:
-            Refined predictions [n_nodes]
-        """
+                                   num_iterations: int = 5):
         n_nodes = features.shape[0]
         n_classes = initial_predictions.max().item() + 1
         
@@ -190,20 +177,6 @@ class GraphAwarePrototypeLearner(PrototypeInContextLearner):
                                     use_graph_aware: bool = True,
                                     use_adaptive_distance: bool = True,
                                     use_refinement: bool = True) -> Dict:
-        """
-        Enhanced prototype-based inference with multiple strategies.
-        
-        Args:
-            graph_data: Target graph
-            k_shot: Number of support examples per class
-            seed: Random seed
-            use_graph_aware: Use graph-aware prototypes
-            use_adaptive_distance: Use adaptive distance metric
-            use_refinement: Use semi-supervised refinement
-            
-        Returns:
-            Results dictionary
-        """
         torch.manual_seed(seed)
         np.random.seed(seed)
         
@@ -331,26 +304,13 @@ class GraphAwarePrototypeLearner(PrototypeInContextLearner):
         return results
 
 
-class LabelPropagation(MessagePassing):
-    """Label propagation layer for semi-supervised learning."""
-    
+class LabelPropagation(MessagePassing):    
     def __init__(self, num_layers: int = 3, alpha: float = 0.9):
         super().__init__(aggr='add')
         self.num_layers = num_layers
         self.alpha = alpha
     
     def forward(self, x: torch.Tensor, edge_index: torch.Tensor) -> torch.Tensor:
-        """
-        Propagate labels through graph.
-        
-        Args:
-            x: Node label distributions [n_nodes, n_classes]
-            edge_index: Graph edges [2, n_edges]
-            
-        Returns:
-            Propagated labels [n_nodes, n_classes]
-        """
-        # Add self-loops
         edge_index, _ = add_self_loops(edge_index, num_nodes=x.size(0))
         
         # Compute normalization
@@ -379,10 +339,10 @@ def main():
     
     parser = argparse.ArgumentParser(description="Enhanced G-Align Prototype ICL")
     parser.add_argument('--model_path', type=str, default='generated_files/output/G-Align/Aug13-0:14-97cc0c8c/final_gfm_model.pt')
-    parser.add_argument('--dataset', type=str, default='cora')  # computers  ogbn-products  
+    parser.add_argument('--dataset', type=str, default='ogbn-products')  # cora  computers  ogbn-products  
     parser.add_argument('--k_shot', type=int, default=1)  # 
     parser.add_argument('--n_runs', type=int, default=10)
-    parser.add_argument('--gpu_id', type=int, default=0)
+    parser.add_argument('--gpu_id', type=int, default=3)
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--norm_feat', action='store_true', default=False)
     
@@ -402,23 +362,21 @@ def main():
 
     # Load dataset
     graph_data = learner.load_downstream_graph(args.dataset)
-    
     if args.norm_feat:
         graph_data = T.NormalizeFeatures()(graph_data)
-
-
+    
     logger.info("="*60)
     logger.info("Enhanced Prototype-based In-Context Learning")
     logger.info("="*60)
     
     # Test different configurations
     configs = [
-        (False, False, False),  # Baseline prototypes
-        (True, False, False),   # Graph-aware only
-        (False, True, False),   # Adaptive distance only
-        (False, False, True),   # Refinement only
-        (True, True, False),    # Graph + Adaptive
-        (True, True, True),     # All enhancements
+        (False, False, False),  
+        (True, False, False),   
+        (False, True, False),   
+        (False, False, True),  
+        (True, True, False),   
+        (True, True, True),    
     ]
     
     config_names = [

@@ -103,17 +103,24 @@ if facing some converagence issue on some GPUs, just **reduce the learning rate 
 
 
 ## In-Context Node Classification
-Cora: 
+
+#### Cora: 
+
 ```python run_ICL_node.py --dataset cora --k_shot {k_shot}```  
+
 k_shot = {1,3,5}
 
-Computers:
+#### Computers:
 ```python run_ICL_node.py --dataset computers --k_shot {k_shot} --norm_feat```
+
 k_shot = {1,3}
+
 ```python run_ICL_node.py --dataset computers --k_shot 5```
 
-ogbn-Products
+
+### ogbn-Products
 ```python run_ICL_node.py --dataset ogbn-products --k_shot {k_shot}```
+
 k_shot = {1,3,5}
 
 

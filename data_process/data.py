@@ -318,10 +318,14 @@ class SingleGraphDataset(InMemoryDataset, ABC):
                 # save data into datasets/pyg/Planetoid.Cora/...
                 if len(components) == 2:
                     parent, child = components   # parent = Planetoid, child = Cora 
-                    # torch_geometric.datasets.planetoid.Planetoid            
-                    dataset = getattr(__import__("torch_geometric.datasets", fromlist=[parent]), parent)(
-                        root = self.root, name = child
-                    )
+                    # torch_geometric.datasets.planetoid.Planetoid
+                    if child not in ['FacebookPagePage',  'EmailEUCore', 'Reddit', 'DeezerEurope']:
+                        dataset = getattr(__import__("torch_geometric.datasets", fromlist=[parent]), parent)(
+                            root = self.root, name = child
+                        )
+                    else: # parent = Social, child=FacebookPagePage
+                        from torch_geometric.datasets import FacebookPagePage
+                        dataset = FacebookPagePage(root=self.root)
                 else:
                     dataset = instantiate({"_target_": f"torch_geometric.datasets.{ds_alias}", "root": self.root})
                 data = dataset[0]
@@ -333,7 +337,10 @@ class SingleGraphDataset(InMemoryDataset, ABC):
                     if dataset.num_features == self.unify_dim:
                         pca_x = data.x.clone()
                     else:
-                        x_np = data.x.cpu().numpy()
+                        if self.ds_name not in ['flickr']:
+                            x_np = data.x.cpu().numpy()
+                        else:
+                            x_np = data.x.cpu().to_dense().numpy()
                         pca = PCA(n_components=self.unify_dim)
                         projected = pca.fit_transform(x_np)  # (N, unify_dim)
                         pca_x = torch.from_numpy(projected).float()

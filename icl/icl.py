@@ -198,6 +198,15 @@ class PrototypeInContextLearner:
             subset, edge_index, mapping, edge_mask = k_hop_subgraph(sampled_nodes, num_hops=1, edge_index=graph_data.edge_index, num_nodes=graph_data.x.shape[0], relabel_nodes=True)
             graph_data = Data(x=graph_data.x[subset],edge_index=edge_index,y=graph_data.y[subset],xe=torch.zeros(edge_index.shape[1], dtype=torch.long))
 
+        if dataset_name == 'Roman-empire':
+            #  train_mask=[22662, 10], test_mask=[22662, 10], val_mask=[22662, 10]
+            train_mask = graph_data.train_mask[:,0]
+            val_mask = graph_data.val_mask[:,0]
+            test_mask = graph_data.test_mask[:,0]
+            graph_data.train_mask = train_mask
+            graph_data.val_mask = val_mask
+            graph_data.test_mask = test_mask
+
         if not hasattr(graph_data, 'batch'):
             graph_data.batch = torch.zeros(graph_data.x.shape[0], dtype=torch.long)
         

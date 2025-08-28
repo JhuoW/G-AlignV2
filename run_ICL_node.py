@@ -21,6 +21,7 @@ root = rootutils.setup_root(__file__, dotenv=True, pythonpath=True, cwd=False)
 from icl.icl import PrototypeInContextLearner
 from utils.logging import logger
 import torch_geometric.transforms as T
+# from torch_geometric.datasets import FacebookPagePage
 
 
 class GraphAwarePrototypeLearner(PrototypeInContextLearner):
@@ -100,22 +101,9 @@ class GraphAwarePrototypeLearner(PrototypeInContextLearner):
                          query_features: torch.Tensor,
                          prototypes: torch.Tensor,
                          confidence: Optional[torch.Tensor] = None) -> torch.Tensor:
-        """
-        Compute adaptive distance based on feature statistics.
-        
-        Args:
-            query_features: Query features [n_query, d]
-            prototypes: Class prototypes [n_classes, d]
-            confidence: Optional confidence weights
-            
-        Returns:
-            Distance scores [n_query, n_classes]
-        """
-        # Normalize features
         query_norm = F.normalize(query_features, p=2, dim=-1)
         proto_norm = F.normalize(prototypes, p=2, dim=-1)
         
-        # Cosine similarity
         cos_sim = torch.mm(query_norm, proto_norm.t())
         
         # Euclidean distance (normalized)
@@ -339,15 +327,17 @@ def main():
     
     parser = argparse.ArgumentParser(description="Enhanced G-Align Prototype ICL")
     parser.add_argument('--model_path', type=str, default='generated_files/output/G-Align/Aug13-0:14-97cc0c8c/final_gfm_model.pt')
-    parser.add_argument('--dataset', type=str, default='ogbn-products')  # cora  computers  ogbn-products  
-    parser.add_argument('--k_shot', type=int, default=1)  # 
+    # parser.add_argument('--model_path', type=str, default='generated_files/output/G-Align/Aug26-22:08-711a96fc/final_gfm_model.pt')
+    # cora, computers, ogbn-products, Roman-empire, usa (us-airport), paris, twitch-de, blogcatalog, 
+    # deezereurope
+    parser.add_argument('--dataset', type=str, default='usa')  
+    parser.add_argument('--k_shot', type=int, default=5)  # 
     parser.add_argument('--n_runs', type=int, default=10)
     parser.add_argument('--gpu_id', type=int, default=3)
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--norm_feat', action='store_true', default=False)
-    
+    parser.add_argument('--add_loop', action='store_true', default=False)
     args = parser.parse_args()
-    
     # Initialize enhanced learner
     learner = GraphAwarePrototypeLearner(args)
     
@@ -358,13 +348,32 @@ def main():
             learner.cfg['_ds_meta_data'][args.dataset] = ('pyg, Planetoid.Cora')
         elif args.dataset == 'ogbn-products':
             learner.cfg['_ds_meta_data'][args.dataset] = ('ogb.nodeproppred, PygNodePropPredDataset.ogbn-products')
-        
-
+        elif args.dataset == 'Roman-empire':
+            learner.cfg['_ds_meta_data'][args.dataset] = ('pyg, HeterophilousGraphDataset.Roman-empire')
+        elif args.dataset == 'usa':
+            learner.cfg['_ds_meta_data'][args.dataset] = ('pyg, Airports.USA')
+        elif args.dataset == 'paris':
+            learner.cfg['_ds_meta_data'][args.dataset] = ('pyg, CityNetwork.paris')
+        elif args.dataset == 'facebookpagepage':
+            learner.cfg['_ds_meta_data'][args.dataset] = ('pyg, Social.FacebookPagePage')
+        elif args.dataset == 'flickr':
+            learner.cfg['_ds_meta_data'][args.dataset] = ('pyg, AttributedGraphDataset.Flickr')
+        elif args.dataset == 'email':
+            learner.cfg['_ds_meta_data'][args.dataset] = ('pyg, Email.EmailEUCore')
+        elif args.dataset == 'twitch-de':
+            learner.cfg['_ds_meta_data'][args.dataset] = ('pyg, Twitch.DE')
+        elif args.dataset == 'reddit':
+            learner.cfg['_ds_meta_data'][args.dataset] = ('pyg, Social.Reddit')
+        elif args.dataset == 'blogcatalog':
+            learner.cfg['_ds_meta_data'][args.dataset] = ('pyg, AttributedGraphDataset.BlogCatalog')
+        elif args.dataset == 'deezereurope':
+            learner.cfg['_ds_meta_data'][args.dataset] = ('pyg, Deezer.DeezerEurope')
     # Load dataset
     graph_data = learner.load_downstream_graph(args.dataset)
     if args.norm_feat:
         graph_data = T.NormalizeFeatures()(graph_data)
-    
+    if args.add_loop:
+        graph_data = T.AddSelfLoops()(graph_data)
     logger.info("="*60)
     logger.info("Enhanced Prototype-based In-Context Learning")
     logger.info("="*60)

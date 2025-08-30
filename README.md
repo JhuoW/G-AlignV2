@@ -1,6 +1,6 @@
 <div align=center>
 
-# Modality-Free Graph In-Context Alignment
+# *Modality-Free Graph In-Context Alignment*
 
 </div>
 
@@ -202,3 +202,5 @@ python run_ICL_node.py --dataset physics --k_shot ${k_shot}
 # k_shot = {1,3,5}
 python run_ICL_node.py --dataset blogcatalog --k_shot ${k_shot}
 ```
+
+### In-Context link classification

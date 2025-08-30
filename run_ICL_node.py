@@ -1,12 +1,4 @@
 #!/usr/bin/env python
-"""
-Enhanced prototype-based in-context learning for G-Align.
-Combines multiple strategies for improved performance:
-1. Weighted prototypes based on confidence
-2. Graph structure-aware prototypes
-3. Adaptive distance metrics
-4. Semi-supervised refinement
-"""
 
 import torch
 import torch.nn as nn
@@ -22,14 +14,12 @@ from icl.icl import PrototypeInContextLearner
 from utils.logging import logger
 import torch_geometric.transforms as T
 # from torch_geometric.datasets import FacebookPagePage
+from torch_geometric.utils import degree
 
-
-class GraphAwarePrototypeLearner(PrototypeInContextLearner):
-    """Enhanced prototype learner with graph-aware features."""
-    
+class GraphAwarePrototypeLearner(PrototypeInContextLearner):    
     def __init__(self, args):
         super().__init__(args)
-        self.label_propagation = LabelPropagation(num_layers=3, alpha=0.9)
+        self.label_propagation = LabelPropagation(num_layers=3, alpha=0.9)  # default 3 0.9
         
     def compute_graph_aware_prototypes(self, 
                                       features: torch.Tensor,
@@ -37,60 +27,62 @@ class GraphAwarePrototypeLearner(PrototypeInContextLearner):
                                       edge_index: torch.Tensor,
                                       unique_labels: torch.Tensor,
                                       mask: torch.Tensor = None) -> torch.Tensor:
-        """
-        Compute prototypes with graph structure awareness.
-        
-        Args:
-            features: Node features [n_nodes, d]
-            labels: Node labels [n_nodes]
-            edge_index: Graph edges [2, n_edges]
-            unique_labels: Unique class labels
-            mask: Support set mask
+        if not self.args.no_lp:
+            n_nodes = features.shape[0]
+            n_classes = len(unique_labels)
             
-        Returns:
-            Graph-aware prototypes [n_classes, d]
-        """
-        n_nodes = features.shape[0]
-        n_classes = len(unique_labels)
-        
-        # Initialize soft labels
-        soft_labels = torch.zeros(n_nodes, n_classes, device=features.device)
-        
-        # Set hard labels for support set
-        if mask is not None:
+            # Initialize soft labels
+            soft_labels = torch.zeros(n_nodes, n_classes, device=features.device)
+            
+            if mask is not None:
+                for idx, label in enumerate(unique_labels):
+                    class_mask = mask & (labels == label)
+                    if class_mask.sum() > 0:
+                        soft_labels[class_mask, idx] = 1.0
+            
+            propagated_labels = self.label_propagation(soft_labels, edge_index)
+            
+            prototypes = []
             for idx, label in enumerate(unique_labels):
-                class_mask = mask & (labels == label)
-                if class_mask.sum() > 0:
-                    soft_labels[class_mask, idx] = 1.0
-        
-        # Propagate labels through graph
-        propagated_labels = self.label_propagation(soft_labels, edge_index)
-        
-        # Compute weighted prototypes
-        prototypes = []
-        for idx, label in enumerate(unique_labels):
-            # Get propagated weights for this class
-            class_weights = propagated_labels[:, idx]
-            
-            # Weight threshold
-            weight_threshold = 0.1
-            valid_mask = class_weights > weight_threshold
-            
-            if valid_mask.sum() > 0:
-                # Weighted average of features
-                weighted_features = features[valid_mask] * class_weights[valid_mask].unsqueeze(-1)
-                prototype = weighted_features.sum(dim=0) / class_weights[valid_mask].sum()
-            else:
-                # Fallback to simple mean
+                class_weights = propagated_labels[:, idx]
+                
+                weight_threshold = 0.1   # default 0.1
+                valid_mask = class_weights > weight_threshold
+                
+                if valid_mask.sum() > 0:
+                    weighted_features = features[valid_mask] * class_weights[valid_mask].unsqueeze(-1)
+                    prototype = weighted_features.sum(dim=0) / class_weights[valid_mask].sum()
+                else:
+                    class_mask = labels == label
+                    if mask is not None:
+                        class_mask = class_mask & mask
+                    if class_mask.sum() > 0:
+                        prototype = features[class_mask].mean(dim=0)
+                    else:
+                        prototype = torch.zeros_like(features[0])
+                
+                prototypes.append(prototype)
+        else:
+            row, col = edge_index
+            degrees = degree(col, features.size(0), dtype=features.dtype)
+            degrees = degrees / (degrees.mean() + 1e-6)
+            prototypes = []
+            for label in unique_labels:
                 class_mask = labels == label
                 if mask is not None:
                     class_mask = class_mask & mask
+                
                 if class_mask.sum() > 0:
-                    prototype = features[class_mask].mean(dim=0)
+                    class_features = features[class_mask]
+                    class_degrees = degrees[class_mask]
+                    
+                    # Weight by degree centrality (important nodes have higher weight)
+                    weights = F.softmax(class_degrees, dim=0)
+                    prototype = (class_features * weights.unsqueeze(1)).sum(dim=0)
                 else:
                     prototype = torch.zeros_like(features[0])
-            
-            prototypes.append(prototype)
+                
+                prototypes.append(prototype)                    
         
         prototypes = torch.stack(prototypes, dim=0)
         prototypes = F.normalize(prototypes, p=2, dim=-1)
@@ -98,9 +90,9 @@ class GraphAwarePrototypeLearner(PrototypeInContextLearner):
         return prototypes
     
     def adaptive_distance(self, 
-                         query_features: torch.Tensor,
-                         prototypes: torch.Tensor,
-                         confidence: Optional[torch.Tensor] = None) -> torch.Tensor:
+                         query_features,
+                         prototypes,
+                         confidence = None) -> torch.Tensor:
         query_norm = F.normalize(query_features, p=2, dim=-1)
         proto_norm = F.normalize(prototypes, p=2, dim=-1)
         
@@ -130,30 +122,53 @@ class GraphAwarePrototypeLearner(PrototypeInContextLearner):
                                    num_iterations: int = 5):
         n_nodes = features.shape[0]
         n_classes = initial_predictions.max().item() + 1
-        
-        # Initialize pseudo-labels
-        pseudo_labels = torch.zeros(n_nodes, n_classes, device=features.device)
-        for i in range(n_nodes):
-            if support_mask[i]:
-                # Keep support set labels fixed
-                pseudo_labels[i, initial_predictions[i]] = 1.0
-            else:
-                # Soft labels for query set
-                pseudo_labels[i, initial_predictions[i]] = 0.8
-        
-        # Iterative refinement
-        for _ in range(num_iterations):
-            # Propagate labels
-            propagated = self.label_propagation(pseudo_labels, edge_index)
+        if not self.args.no_lp:
+            pseudo_labels = torch.zeros(n_nodes, n_classes, device=features.device)
+            for i in range(n_nodes):
+                if support_mask[i]:
+                    # Keep support set labels fixed
+                    pseudo_labels[i, initial_predictions[i]] = 1.0
+                else:
+                    # Soft labels for query set
+                    pseudo_labels[i, initial_predictions[i]] = 0.8
             
-            # Update non-support nodes
-            pseudo_labels[~support_mask] = 0.9 * propagated[~support_mask] + 0.1 * pseudo_labels[~support_mask]
+            # Iterative refinement
+            for _ in range(num_iterations):
+                # Propagate labels
+                propagated = self.label_propagation(pseudo_labels, edge_index)
+                
+                # Update non-support nodes
+                pseudo_labels[~support_mask] = 0.9 * propagated[~support_mask] + 0.1 * pseudo_labels[~support_mask]
+                
+                # Normalize
+                pseudo_labels = F.softmax(pseudo_labels, dim=-1)
             
-            # Normalize
-            pseudo_labels = F.softmax(pseudo_labels, dim=-1)
-        
-        # Get final predictions
-        refined_predictions = pseudo_labels.argmax(dim=-1)
+            refined_predictions = pseudo_labels.argmax(dim=-1)
+        else:
+            edge_index_with_loops, _ = add_self_loops(edge_index, num_nodes=n_nodes)
+            refined_predictions = initial_predictions.clone()
+            
+            for _ in range(num_iterations):
+                new_predictions = refined_predictions.clone()
+                
+                # For each non-support node, consider neighbors' predictions
+                for node in torch.where(~support_mask)[0]:
+                    # Find neighbors
+                    neighbors = edge_index_with_loops[1][edge_index_with_loops[0] == node]
+                    
+                    if len(neighbors) > 0:
+                        # Get neighbor predictions
+                        neighbor_preds = refined_predictions[neighbors]
+                        
+                        # Majority voting
+                        unique_preds, counts = torch.unique(neighbor_preds, return_counts=True)
+                        majority_pred = unique_preds[counts.argmax()]
+                        
+                        # Smooth update: blend current and majority
+                        if torch.rand(1).item() > 0.3:  # 70% chance to follow majority
+                            new_predictions[node] = majority_pred
+                
+                refined_predictions = new_predictions            
         
         return refined_predictions
     
@@ -211,6 +226,7 @@ class GraphAwarePrototypeLearner(PrototypeInContextLearner):
         support_mask = torch.zeros_like(train_mask)
         support_labels = []
         
+        
         for class_label in unique_labels:
             class_train_mask = train_mask & (labels == class_label)
             class_train_indices = class_train_mask.nonzero(as_tuple=False).squeeze(-1)
@@ -234,7 +250,6 @@ class GraphAwarePrototypeLearner(PrototypeInContextLearner):
             support_labels_tensor = labels[support_mask]
             prototypes = self.compute_prototypes(support_features, support_labels_tensor, unique_labels)
         
-        # Get initial predictions for all nodes
         if use_adaptive_distance:
             similarities = self.adaptive_distance(z_all, prototypes)
         else:
@@ -283,7 +298,8 @@ class GraphAwarePrototypeLearner(PrototypeInContextLearner):
             'k_shot': k_shot,
             'use_graph_aware': use_graph_aware,
             'use_adaptive_distance': use_adaptive_distance,
-            'use_refinement': use_refinement
+            'use_refinement': use_refinement,
+            'label_propagation': not self.args.no_lp
         }
         
         logger.info(f"Accuracy: {accuracy:.4f}")
@@ -291,10 +307,10 @@ class GraphAwarePrototypeLearner(PrototypeInContextLearner):
         
         return results
 
-
 class LabelPropagation(MessagePassing):    
     def __init__(self, num_layers: int = 3, alpha: float = 0.9):
         super().__init__(aggr='add')
+        
         self.num_layers = num_layers
         self.alpha = alpha
     
@@ -308,10 +324,8 @@ class LabelPropagation(MessagePassing):
         deg_inv_sqrt[deg_inv_sqrt == float('inf')] = 0
         norm = deg_inv_sqrt[row] * deg_inv_sqrt[col]
         
-        # Store original labels
         x_orig = x.clone()
         
-        # Propagate
         for _ in range(self.num_layers):
             x = self.propagate(edge_index, x=x, norm=norm)
             x = self.alpha * x + (1 - self.alpha) * x_orig
@@ -325,18 +339,21 @@ class LabelPropagation(MessagePassing):
 def main():
     import argparse
     
-    parser = argparse.ArgumentParser(description="Enhanced G-Align Prototype ICL")
+    parser = argparse.ArgumentParser()
     parser.add_argument('--model_path', type=str, default='generated_files/output/G-Align/Aug13-0:14-97cc0c8c/final_gfm_model.pt')
     # parser.add_argument('--model_path', type=str, default='generated_files/output/G-Align/Aug26-22:08-711a96fc/final_gfm_model.pt')
-    # cora, computers, ogbn-products, Roman-empire, usa (us-airport), paris, twitch-de, blogcatalog, 
-    # deezereurope
-    parser.add_argument('--dataset', type=str, default='usa')  
+
+    # cora, computers, ogbn-products, Roman-empire, usa (us-airport), paris, twitch-de, blogcatalog, weibo, twitter, fm
+    # deezereurope, physics, facebook, facebookpagepage
+    parser.add_argument('--dataset', type=str, default='blogcatalog')  
     parser.add_argument('--k_shot', type=int, default=5)  # 
     parser.add_argument('--n_runs', type=int, default=10)
     parser.add_argument('--gpu_id', type=int, default=3)
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--norm_feat', action='store_true', default=False)
     parser.add_argument('--add_loop', action='store_true', default=False)
+    parser.add_argument('--undirected', action='store_true', default=False)
+    parser.add_argument('--no_lp', action='store_true', default=False)
     args = parser.parse_args()
     # Initialize enhanced learner
     learner = GraphAwarePrototypeLearner(args)
@@ -368,14 +385,26 @@ def main():
             learner.cfg['_ds_meta_data'][args.dataset] = ('pyg, AttributedGraphDataset.BlogCatalog')
         elif args.dataset == 'deezereurope':
             learner.cfg['_ds_meta_data'][args.dataset] = ('pyg, Deezer.DeezerEurope')
+        elif args.dataset == 'physics':
+            learner.cfg['_ds_meta_data'][args.dataset] = ('pyg, Coauthor.Physics')
+        elif args.dataset == 'weibo':
+            learner.cfg['_ds_meta_data'][args.dataset] = ('pyg, AttributedGraphDataset.TWeibo')
+        elif args.dataset == 'twitter':
+            learner.cfg['_ds_meta_data'][args.dataset] = ('pyg, AttributedGraphDataset.Twitter')
+        elif args.dataset == 'facebook':
+            learner.cfg['_ds_meta_data'][args.dataset] = ('pyg, AttributedGraphDataset.Facebook')
+        elif args.dataset == 'fm':
+            learner.cfg['_ds_meta_data'][args.dataset] = ('pyg, Social.LastFMAsia')
     # Load dataset
     graph_data = learner.load_downstream_graph(args.dataset)
     if args.norm_feat:
         graph_data = T.NormalizeFeatures()(graph_data)
     if args.add_loop:
         graph_data = T.AddSelfLoops()(graph_data)
+    if args.undirected:
+        graph_data = T.ToUndirected()(graph_data)
     logger.info("="*60)
-    logger.info("Enhanced Prototype-based In-Context Learning")
+    logger.info("In-Context Node Classification")
     logger.info("="*60)
     
     # Test different configurations

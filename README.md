@@ -124,3 +124,14 @@ k_shot = {1,3}
 k_shot = {1,3,5}
 
 
+#### Physics
+```python run_ICL_node.py --dataset physics --k_shot {k_shot}```
+
+k_shot = {1,3,5}
+
+### BlogCatalog
+In BlogCatalog, we remove an in-balanced class 0 from the graph.
+
+```python run_ICL_node.py --dataset blogcatalog --k_shot {k_shot}``` 
+
+k_shot = {1,3,5}

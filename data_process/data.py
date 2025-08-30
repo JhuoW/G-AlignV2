@@ -319,12 +319,12 @@ class SingleGraphDataset(InMemoryDataset, ABC):
                 if len(components) == 2:
                     parent, child = components   # parent = Planetoid, child = Cora 
                     # torch_geometric.datasets.planetoid.Planetoid
-                    if child not in ['FacebookPagePage',  'EmailEUCore', 'Reddit', 'DeezerEurope']:
+                    if child not in ['FacebookPagePage',  'EmailEUCore', 'Reddit', 'DeezerEurope', 'LastFMAsia']:
                         dataset = getattr(__import__("torch_geometric.datasets", fromlist=[parent]), parent)(
                             root = self.root, name = child
                         )
                     else: # parent = Social, child=FacebookPagePage
-                        from torch_geometric.datasets import FacebookPagePage
+                        from torch_geometric.datasets import LastFMAsia, FacebookPagePage, EmailEUCore, Reddit, DeezerEurope
                         dataset = FacebookPagePage(root=self.root)
                 else:
                     dataset = instantiate({"_target_": f"torch_geometric.datasets.{ds_alias}", "root": self.root})
@@ -337,7 +337,7 @@ class SingleGraphDataset(InMemoryDataset, ABC):
                     if dataset.num_features == self.unify_dim:
                         pca_x = data.x.clone()
                     else:
-                        if self.ds_name not in ['flickr']:
+                        if self.ds_name not in ['flickr','twitter']:
                             x_np = data.x.cpu().numpy()
                         else:
                             x_np = data.x.cpu().to_dense().numpy()

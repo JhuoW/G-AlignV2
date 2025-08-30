@@ -170,7 +170,9 @@ def span_node_and_edge_idx(dataset):
     if dataset.data.x.ndim == 1:
         return dataset
 
-    if dataset.ds_name in ['cora', 'pubmed', 'amazon-ratings', 'computers', 'ogbn-products', 'Roman-empire', 'usa','paris', 'facebookpagepage', 'flickr', 'email', 'twitch-de', 'reddit', 'blogcatalog', 'twitch-en', 'deezereurope']:
+    if dataset.ds_name in ['cora', 'pubmed', 'amazon-ratings', 'computers', 'ogbn-products', 'Roman-empire', 
+                           'usa','paris', 'facebookpagepage', 'flickr', 'email', 'twitch-de', 'reddit', 
+                           'blogcatalog', 'twitch-en', 'deezereurope', 'physics', 'weibo','twitter','facebook', 'fm']:
         # num_nodes = dataset.data.x.shape[0]
         dataset.data.xn = dataset.data.x
     elif dataset.ds_name in ['arxiv', 'wikics', 'fb15k237', 'wn18rr']:
@@ -181,7 +183,9 @@ def span_node_and_edge_idx(dataset):
     # dataset.data.x = torch.arange(num_nodes)
 
     # Define edge index
-    if dataset.ds_name in ['cora', 'pubmed', 'amazon-ratings', 'computers', 'ogbn-products', 'Roman-empire', 'usa','paris', 'facebookpagepage','flickr', 'email', 'twitch-de', 'reddit', 'blogcatalog', 'twitch-en', 'deezereurope']:
+    if dataset.ds_name in ['cora', 'pubmed', 'amazon-ratings', 'computers', 'ogbn-products', 'Roman-empire', 
+                           'usa','paris', 'facebookpagepage','flickr', 'email', 'twitch-de', 'reddit', 
+                           'blogcatalog', 'twitch-en', 'deezereurope', 'physics','weibo','twitter', 'facebook', 'fm']:
         num_edge_types = 1
     elif dataset.ds_name in ['arxiv', 'wikics']:
         num_edge_types = dataset.data.edge_text_feat.shape[0]  # 1个边类型

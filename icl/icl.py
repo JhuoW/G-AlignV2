@@ -18,6 +18,7 @@ import argparse
 from sklearn.decomposition import PCA
 from torch_geometric.utils import k_hop_subgraph, subgraph
 from torch_geometric.loader import NeighborLoader
+from utils.utils import extract_classes_subgraph
 
 class PrototypeInContextLearner:
     """Prototype-based in-context learning for G-Align."""
@@ -178,7 +179,9 @@ class PrototypeInContextLearner:
             test_mask=dataset.test_mask,
             val_mask=dataset.val_mask
         )
-        
+
+        if dataset_name == 'blogcatalog':
+            graph_data = extract_classes_subgraph(graph_data, target_classes = [0,2,3,4,5])
         if dataset_name == 'ogbn-products':
             if graph_data.y.dim() > 1:
                 graph_data.y = graph_data.y.squeeze()
@@ -198,6 +201,28 @@ class PrototypeInContextLearner:
             subset, edge_index, mapping, edge_mask = k_hop_subgraph(sampled_nodes, num_hops=1, edge_index=graph_data.edge_index, num_nodes=graph_data.x.shape[0], relabel_nodes=True)
             graph_data = Data(x=graph_data.x[subset],edge_index=edge_index,y=graph_data.y[subset],xe=torch.zeros(edge_index.shape[1], dtype=torch.long))
 
+        if dataset_name == 'weibo':
+
+            if graph_data.y.dim() > 1:
+                graph_data.y = graph_data.y.squeeze()
+            num_sample_per_class = self.args.k_shot * 10  
+            sampled_nodes = []
+            
+            for class_id in range(8):  
+                class_mask =  (graph_data.y == class_id)
+                class_nodes = torch.where(class_mask)[0]
+                if len(class_nodes) > 0:
+                    n_sample = min(num_sample_per_class, len(class_nodes))
+                    sampled = class_nodes[torch.randperm(len(class_nodes))[:n_sample]]
+                    sampled_nodes.append(sampled)
+            if len(sampled_nodes) == 0:
+                raise ValueError("No nodes were sampled!")  
+            sampled_nodes = torch.cat(sampled_nodes)
+            subset, edge_index, mapping, edge_mask = k_hop_subgraph(sampled_nodes, num_hops=1, edge_index=graph_data.edge_index, num_nodes=graph_data.x.shape[0], relabel_nodes=True)
+
+            graph_data = Data(x=graph_data.x[subset],edge_index=edge_index,y=graph_data.y[subset],xe=torch.zeros(edge_index.shape[1], dtype=torch.long))
+
+
         if dataset_name == 'Roman-empire':
             #  train_mask=[22662, 10], test_mask=[22662, 10], val_mask=[22662, 10]
             train_mask = graph_data.train_mask[:,0]
@@ -207,9 +232,12 @@ class PrototypeInContextLearner:
             graph_data.val_mask = val_mask
             graph_data.test_mask = test_mask
 
+
+
         if not hasattr(graph_data, 'batch'):
             graph_data.batch = torch.zeros(graph_data.x.shape[0], dtype=torch.long)
         
+
         return graph_data.to(self.device)
 
     def dimension_align(self, ds):

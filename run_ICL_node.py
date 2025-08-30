@@ -345,7 +345,7 @@ def main():
 
     # cora, computers, ogbn-products, Roman-empire, usa (us-airport), paris, twitch-de, blogcatalog, weibo, twitter, fm
     # deezereurope, physics, facebook, facebookpagepage
-    parser.add_argument('--dataset', type=str, default='blogcatalog')  
+    parser.add_argument('--dataset', type=str, default='cora')  
     parser.add_argument('--k_shot', type=int, default=5)  # 
     parser.add_argument('--n_runs', type=int, default=10)
     parser.add_argument('--gpu_id', type=int, default=3)

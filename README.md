@@ -153,6 +153,15 @@ The training curve of the model monitored by wandb is as follows under A5000 GPU
 
 ## Evaluation
 
+### Checkpoints
+We provide both the pre-trained checkpoints in the ```generated_files/checkpoints/```, and you can specify one of them to evaluate the downstream datasets:
+
+```python run_ICL_node.py --dataset ${dataset_name} --k_shot ${k_shot} --model_path generated_files/output/G-Align/Aug13-0:14-97cc0c8c/final_gfm_model.pt``` 
+
+or
+
+```python run_ICL_node.py --dataset ${dataset_name} --k_shot ${k_shot} --model_path generated_files/output/G-Align/Aug26-22:08-711a96fc/final_gfm_model.pt``` 
+
 ### In-Context node classification
 
 To reproduce the reported results, run:
